@@ -7,7 +7,6 @@
  */
 
 
-
 /* DETAILS OF ALGORITHM/HOW OPTIONS ARE SCREENED
  *
  * Everything is weighted!
@@ -17,7 +16,10 @@
  * Find the trend of the stock (heavier weighting for the more a stock has a stable trend)
  * Find support/resistance points (heavier weighing for approaching these levels)
  * Find catalyst event (typically earnings) (heavier weighting for the close the event is, or perhaps closer to experation)
- * 
+ * Smaller bid/ask spread (heavier weighting)
+ * Take into account analysts predictions
+ * Profitability/revenue, growth estimates (heavier weighting for the better numbers)
+ * High beta (heavier weighting)
  * 
  */
 

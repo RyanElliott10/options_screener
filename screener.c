@@ -15,10 +15,10 @@ int main(int argc, char *argv[])
    pid_t pid;
    char **tick_list;
 
-   // if child, exec python program
-   if((pid = fork()) == 0)
+   if((pid = fork()) == 0)		// if child, exec python program
    {
-      execlp("python", "python", "options_collector.py", (char *)NULL);
+      printf("Collecting stock and option data...\n");
+      execlp("python3", "python3", "options_collector.py", (char *)NULL);
       exit(EXIT_FAILURE);
    }
 
@@ -44,22 +44,18 @@ char **parse_args(int argc, char *argv[], int *mode, int *tl_size)
    *tl_size = 0;
    *mode    = 0;  // silences warnings
 
-   // if there is a flag
-   if ((argc > 1) && (argv[1][0] == '-'))
+   if ((argc > 1) && (argv[1][0] == '-'))		// if there is a flag
    {
-      // determine which flag they inputted
-      switch (argv[1][1])
+      switch (argv[1][1])	// determine which flag they inputted
       {
-         // if they want to only use input stocks
-         case 'o':   // fall-through
+         case 'o':	// if they want to only use input stocks
+				// fall-through
             *mode = NEW_STOCKS;
-         // if they want to append stocks
-         case 'a':
+         case 'a':	// if they want to append stocks
             if (*mode != NEW_STOCKS)
                *mode = APPEND_STOCKS;
 
-            // collect all desired tickers
-            for (; i < argc; i++)
+            for (; i < argc; i++)	// collect all desired tickers
             {
                tick_list = safe_realloc(tick_list, ++(*tl_size) * sizeof(char *));
                tick_list[*tl_size-1] = safe_malloc(sizeof(char));
@@ -68,8 +64,7 @@ char **parse_args(int argc, char *argv[], int *mode, int *tl_size)
             }
 
             return tick_list;
-         // if there is a usage error
-         default:
+         default:		// if there is a usage error
             fprintf(stderr, "usage: ./screener [ -o ] [ tickers ]\n");
             fprintf(stderr, "usage: ./screener [ tickers ]\n");
             exit(EXIT_FAILURE);
