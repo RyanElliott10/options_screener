@@ -3,8 +3,8 @@
 # Check if it's optionable here
 # Gathers all data on all calls/puts
 # Find place to gather IV, Beta, Theta, Gamma, Vega
-# Store all data in SQLite database
 # Collect historical IV too
+# Store all data in SQLite database
 # And all previous prices (whatever you did in the short_squeeze_screener)
 # compare to S&P 500 week-change (Yahoo Finance Stats page)
 
@@ -20,6 +20,7 @@ import sys
 import csv
 import requests
 import urllib.request
+from bs4 import BeautifulSoup as soup
 
 def download_files():
 	urls = [
@@ -48,10 +49,85 @@ def download_files():
 
 	return sorted(valid_tickers)
 
+def gather_data(tickers):
+	url = "http://www.optionstrategist.com/calculators/free-volatility-data"
+
+	curr_page = soup(requests.get(url, headers={'User-Agent': 'Custom'}).text, 'html.parser')
+	pre = curr_page.findAll("pre")
+
+	info_list = extract_individuals(pre)
+
+	# formatted as: 
+	# key: ticker
+	# value: list (20 day, 50 day, 100 day)
+	ticker_dict = extract_hv(info_list)
+
+	for thing in ticker_dict:
+		print(thing, ticker_dict[thing])
+
+def extract_hv(info_list):
+	ticker_dict = {}
+
+	for info_obj in info_list:
+		count = 0
+		text = ""
+		ticker = ""
+		ontext = True
+
+		for char in info_obj:
+			# sets ticker, intializes dictionary
+			if ((ord(char) == 32) and (count == 0)):
+				ticker = text
+				ticker_dict[text] = [None, None, None]
+				text = ""
+				ontext = False
+				count += 1
+			elif ((ord(char) == 32) and (count > 0) and ontext):
+				print(count)
+				ticker_dict[ticker][count-1] = float(text)
+				text = ""
+				ontext = False
+				count += 1
+
+				if (count == 4):
+					break
+
+			if (ord(char) != 32 and (char is not '$')):
+				text += char
+				ontext = True
+	
+	return ticker_dict
+		
+
+def extract_individuals(pre):
+	text = ""
+	wait = False
+	count = 0
+	info_list = []
+
+	for char in pre[0].text:
+		# 27 is the number of newline chars before first ticker
+		if (count < 27 and char is '\n'):
+			count += 1
+		elif (count >= 27):		# true meat, where we collect the tickers
+			# gets rid of extraneous data
+			if (char is '@' or char is '*'):
+				wait = True
+			# if data should be appended
+			if (not wait):
+				text += char
+			#resets wait
+			if (wait and char is '\n'):
+				wait = False
+			elif (char is '\n'):
+				info_list.append(text[:len(text)-1])
+				text = ""
+
+	return info_list
 
 def main():
 	tickers = download_files()
-	print(tickers)
+	gather_data(tickers)
 
 if __name__ == "__main__":
     main()
