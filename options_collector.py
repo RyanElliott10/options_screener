@@ -34,7 +34,6 @@ def download_files():
 	for i in range(3):
 		resp = requests.get(urls[i])
 
-		# print(resp.content)
 		output = open(names[i], 'wb')
 		output.write(resp.content)
 		output.close()
@@ -62,8 +61,7 @@ def gather_data(tickers):
 	# value: list (20 day, 50 day, 100 day)
 	ticker_dict = extract_hv(info_list)
 
-	for thing in ticker_dict:
-		print(thing, ticker_dict[thing])
+	return ticker_dict
 
 def extract_hv(info_list):
 	ticker_dict = {}
@@ -83,7 +81,6 @@ def extract_hv(info_list):
 				ontext = False
 				count += 1
 			elif ((ord(char) == 32) and (count > 0) and ontext):
-				print(count)
 				ticker_dict[ticker][count-1] = float(text)
 				text = ""
 				ontext = False
@@ -126,8 +123,26 @@ def extract_individuals(pre):
 	return info_list
 
 def main():
+	del_list = []
+
 	tickers = download_files()
-	gather_data(tickers)
+	ticker_dict = gather_data(tickers)
+
+	# logic to remove anything not in either of the lists
+	for ticker in tickers:
+		if (ticker not in ticker_dict):
+			del_list.append(ticker)
+	for ticker in del_list:
+		tickers.remove(ticker)
+	
+	del_list = []
+	for ticker in ticker_dict:
+		if (ticker not in tickers):
+			del_list.append(ticker)
+	for ticker in del_list:
+		del ticker_dict[ticker]
+
+	# print(len(ticker_dict))
 
 if __name__ == "__main__":
     main()
