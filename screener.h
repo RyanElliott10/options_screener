@@ -6,7 +6,6 @@
  * Maybe allow the user to adjust their timeframe
  */
 
-
 /* DETAILS OF ALGORITHM/HOW OPTIONS ARE SCREENED
  *
  * Everything is weighted!
@@ -23,12 +22,12 @@
  * 
  */
 
-#define REGULAR        1
-#define NEW_STOCKS     2
-#define APPEND_STOCKS  3
+#define REGULAR 1
+#define NEW_STOCKS 2
+#define APPEND_STOCKS 3
 
 #define FALSE 0
-#define TRUE  1
+#define TRUE 1
 
 char **parse_args(int argc, char *argv[], int *mode, int *tl_size);
 void free_all(char **tick_list, int *tl_size);
