@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
       printf("Collecting stock and option data...\n");
       execlp("python3", "python3", "options_collector.py", (char *)NULL);
 
-      pringtf("Unable to gather data]\n");
+      printf("Unable to gather data]\n");
       exit(EXIT_FAILURE);
    }
 

@@ -7,17 +7,20 @@
 # Store all data in SQLite database
 # And all previous prices (whatever you did in the short_squeeze_screener)
 
-# STILL NEEDED: beta/theta/gamma/vega, calls/puts strike, bid x ask, change, expiration, oi, volume, IV
-# DONE: Historical Volatility, Historical stock prices
+# STILL NEEDED: beta/theta/gamma/vega
+# DONE: Historical Volatility, Historical stock prices, calls/puts strike, bid x ask, change, expiration, oi, volume, IV
 
 import os
 import sys
 import csv
 import time
+import math
+import sqlite3
 import operator
 import requests
 import progressbar
 import requests_cache
+from datetime import date
 import concurrent.futures
 import urllib.request
 from bs4 import BeautifulSoup as soup
@@ -36,8 +39,9 @@ class historical_price:
 
 class option:
     def __init__(self, strike=None, dte=None, theta=None, beta=None, vega=None,
-                 gamma=None, iv=None, volume=None, oi=None, itm=None,
-                 bid=None, ask=None, last_p=None):
+                 gamma=None, iv=None, volume=None, open_interest=None, itm=None,
+                 bid=None, ask=None, last_price=None, change=None,
+                 percent_change=None, expiration=None):
         self.strike = strike
         self.dte = dte
         self.theta = theta
@@ -45,18 +49,15 @@ class option:
         self.vega = vega
         self.gamma = gamma
         self.volume = volume
-        self.oi = oi
-        self.iv = iv
+        self.open_interest = open_interest
+        self.iv = (iv * 100)
         self.itm = itm
         self.bid = bid
         self.ask = ask
-        self.last_p = last_p
-
-        # "percentChange", "openInterest", "change",
-        # "strike", "inTheMoney", "impliedVolatility",
-        # "volume", "contractSymbol", "ask",
-        # "lastTradeDate", "contractSize", "expiration",
-        # "currency", "bid", "lastPrice"
+        self.last_price = last_price
+        self.percent_change = percent_change
+        self.change = change
+        self.expiration = expiration
 
 
 class ticker:
@@ -122,6 +123,7 @@ class util:
         self.clean_dict()
 
     def extract_hv(self, info_list):
+        """ Parses historical volatility for each ticker """
         for info_obj in info_list:
             count = 0
             text = ""
@@ -150,6 +152,7 @@ class util:
                     ontext = True
 
     def extract_individuals(self, pre):
+        """ Extracts historical volatility data for each individual ticker """
         text = ""
         wait = False
         count = 0
@@ -159,7 +162,7 @@ class util:
             # 27 is the number of newline chars before first ticker
             if (count < 27 and char is '\n'):
                 count += 1
-            elif (count >= 27):		# true meat, where we collect the tickers
+            elif (count >= 27):     # true meat, where we collect the tickers
                 # gets rid of extraneous data
                 if (char is '@' or char is '*'):
                     wait = True
@@ -176,6 +179,7 @@ class util:
         return info_list
 
     def clean_dict(self):
+        """ Removes duplicate entries from dict and list """
         del_list = []
 
         # logic to remove anything not in either of the lists
@@ -193,6 +197,7 @@ class util:
             del self.ticker_dict[symbol]
 
     def get_options(self, tick):
+        """ Finds all pages regarding options data """
         count = 0
         text = ""
 
@@ -214,6 +219,255 @@ class util:
                 text += char
         tick.dates.append(text)
 
+    def gather_prices(self):
+        """ Gathers the stock's historical prices """
+        for tick in self.tickers:
+            self.parse_prices_page(tick.historical_prices_page, tick)
+
+    def parse_prices_page(self, page, tick):
+        """ Parses each page and appends historical_price objects to the correct list """
+        # formatted as timestamp, volume, open, low, high, close
+        historical_data = [[], [], [], [], [], []]
+
+        index_list = [
+            '"timestamp":[',
+            '"volume":[',
+            '"open":[',
+            '"low":[',
+            '"high":[',
+            '"adjclose":[{"adjclose":'
+        ]
+
+        for i in range(6):
+            index_str = index_list[i]
+            try:
+                index = page.text.index(index_str)
+            except:
+                self.tickers.remove(tick)
+                return
+            num = ""
+            start = False
+
+            for char in page.text[index:]:
+                if (char.isdigit()):
+                    start = True
+                if (start):
+                    if (char != ']'):
+                        if (char == ','):
+                            try:
+                                historical_data[i].append(float(num))
+                                num = ""
+                            except:
+                                self.tickers.remove(tick)
+                                return
+                        else:
+                            num += char
+                    else:
+                        historical_data[i].append(float(num))
+                        break
+
+            historical_data[i].append(float(num))
+
+        for i in range(len(historical_data[0])):
+            hp = historical_price(historical_data[0][i], historical_data[1][i], historical_data[2][i],
+                                  historical_data[3][i], historical_data[4][i], historical_data[5][i])
+            tick.prices.append(hp)
+
+    def gather_option_data(self):
+        """ Parses each options page to collect all data for every option """
+        test = []
+        data_list = []
+
+        for tick in self.tickers:
+            calls = True
+            for j, date_page in enumerate(tick.date_pages):
+                cont = True
+                kw_one = True
+                failed = False
+                page = date_page.text
+                keyword_list = [
+                    "percentChange", "openInterest",
+                    "change", "impliedVolatility", "volume",
+                    "ask", "bid", "lastPrice"
+                ]
+
+                try:
+                    page.index("calls")
+                except:
+                    self.tickers.remove(tick)
+                    break
+
+                try:
+                    index = page.index("percentChange")
+                    page = page[index+len("percentChange"):]
+                except:
+                    self.tickers.remove(tick)
+                    break
+
+                if (page.index("strike") < page.index("change")):
+                    kw_one = True
+                    keyword_list.insert(2, "strike")
+                else:
+                    kw_one = False
+                    keyword_list.insert(3, "strike")
+
+                # parses the entire page
+                while (cont):
+                    # determines if it should continue searching for options
+                    try:
+                        index = page.index("percentChange")
+                        temp = page.index("raw")
+                    except:
+                        cont = False
+                        break
+
+                    page = page[temp+5:]
+                    data_list = []
+
+                    # determines whether we are collecting data for calls or puts
+                    try:
+                        page.index("puts")
+                        calls = True
+                    except:
+                        calls = False
+
+                    # iterate through the list containing words, parsing the page for the data
+                    for i in range(len(keyword_list)):
+                        text = ""
+
+                        # will gather correct data for each keyword
+                        for char in page:
+                            if (char == ','):
+                                test.append(text)
+
+                                try:
+                                    data_list.append(float(text))
+                                except:
+                                    failed = True
+                                    break
+                                break
+                            else:
+                                text += char
+
+                        # if, for some reason, it cannot convert the text to a float, abort entire option,
+                        # never added to calls/puts lists
+                        if (failed):
+                            break
+
+                        try:
+                            temp = page.index(
+                                keyword_list[i+1]) + len(keyword_list[i+1]) + 9
+                            page = page[temp:]
+                        except:
+                            break
+
+                    if (failed):
+                        failed = False
+                        continue
+
+                    self.create_option_obj(tick, data_list, kw_one, j, calls)
+
+    def create_option_obj(self, tick, data_list, kw_one, j, calls):
+        """ Determines which formatting the strike/change of the page is and creates appropriate object """
+        if (kw_one):
+            strike = data_list[2]
+            change = data_list[3]
+        else:
+            strike = data_list[3]
+            change = data_list[2]
+
+        ob = option(percent_change=data_list[0], open_interest=data_list[1],
+                    change=change, strike=strike, iv=data_list[4],
+                    volume=data_list[5], ask=data_list[6], bid=data_list[7],
+                    last_price=data_list[8], expiration=tick.dates[j])
+
+        if (calls):
+            tick.calls.append(ob)
+        else:
+            tick.puts.append(ob)
+
+    def calculate_option_data(self):
+        """ Calculates dte and itm for every option """
+        today = str(date.today())
+        pattern = '%Y-%m-%d'
+        epoch = float(time.mktime(time.strptime(today, pattern)))
+        del_list = []
+
+        for tick in self.tickers:
+            # removes empty tickers
+            if (len(tick.calls) == 0 and len(tick.puts) == 0):
+                del_list.append(tick)
+                continue
+            try:
+                curr_price = tick.prices[len(tick.prices)-1].close
+            except:
+                del_list.append(tick)
+                continue
+
+            for call in tick.calls:
+                dte = float(call.expiration) - epoch
+                dte = math.ceil(dte / 86400)
+                call.dte = dte
+
+                if (call.strike <= curr_price):
+                    call.itm = True
+                else:
+                    call.itm = False
+            for put in tick.puts:
+                dte = float(put.expiration) - epoch
+                dte = math.ceil(dte / 86400)
+                put.dte = dte
+
+                if (put.strike >= curr_price):
+                    put.itm = True
+                else:
+                    put.itm = False
+
+        for tick in del_list:
+            self.tickers.remove(tick)
+
+    def insert_db(self):
+        # for historical prices, the format is:
+        # ticker, open, low, high, close, volume
+        hist_prices_conn = sqlite3.connect("historicalPrices")
+        hist_prices_curs = hist_prices_conn.cursor()
+        hist_prices_curs.execute(
+            "DROP TABLE IF EXISTS historicalPrices")
+        hist_prices_curs.execute(
+            "CREATE TABLE IF NOT EXISTS historicalPrices(ticker TEXT, date INTEGER, open REAL, low REAL, high REAL, close REAL, volume INTEGER)")
+
+        # for options, the format is:
+        # ticker, type, expiration date, dte, strike, volume, oi, bid, ask, last price, percent change, itm,
+        # iv20, iv50, iv100, theta, beta, gamma, vegas
+        options_conn = sqlite3.connect("optionsData")
+        options_curs = options_conn.cursor()
+        options_curs.execute(
+            "DROP TABLE IF EXISTS optionsData")
+        options_curs.execute(
+            "CREATE TABLE IF NOT EXISTS optionsData(ticker TEXT, type TEXT, expirationDate TEXT, dte REAL, strike REAL, " +
+            "volume INTEGER, openInterest INTEGER, bid REAL, ask REAL, lastPrice REAL, percentChange REAL, itm TEXT, " +
+            "iv20 REAL, iv50 REAL, iv100 REAL, theta REAL, beta REAL, gamma REAL, vega REAL)")
+
+        for tick in self.tickers:
+            for price in tick.prices:
+                hist_prices_curs.execute("INSERT INTO historicalPrices VALUES(?, ?, ?, ?, ?, ?, ?)",
+                                         (tick.symbol, price.date, price.open, price.low, price.high, price.close, price.volume))
+            hist_prices_conn.commit()
+
+            for call in tick.calls:
+                options_curs.execute("INSERT INTO optionsData VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " +
+                                     "?, ?, ?, ?, ?, ?)", (tick.symbol, "Call", call.expiration, call.dte, call.strike, call.volume,
+                                                           call.open_interest, call.bid, call.ask, call.last_price, call.percent_change, str(
+                                                               call.itm), tick.iv20,
+                                                           tick.iv50, tick.iv100, call.theta, call.beta, call.gamma, call.vega))
+            for put in tick.puts:
+                options_curs.execute("INSERT INTO optionsData VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " +
+                                     "?, ?, ?, ?, ?, ?)", (tick.symbol, "Put", put.expiration, put.dte, put.strike, put.volume,
+                                                           put.open_interest, put.bid, put.ask, put.last_price, put.percent_change, str(
+                                                               put.itm), tick.iv20,
+                                                           tick.iv50, tick.iv100, put.theta, put.beta, put.gamma, put.vega))
+            options_conn.commit()
+
     def prefetch_webpages(self):
         """ Utility function to prefetch webpages concurrently """
         requests_cache.install_cache(
@@ -221,7 +475,7 @@ class util:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
             future_to_tickers = {executor.submit(
-                self.get_pages, tick): tick for tick in self.tickers[:1]}
+                self.get_pages, tick): tick for tick in self.tickers}
             bar = progressbar.ProgressBar(max_value=len(self.tickers))
             foo = 0
 
@@ -233,8 +487,8 @@ class util:
                 bar.update(foo)
 
         bar.update(len(self.tickers))
-
         print()
+        return bar
 
     def get_pages(self, tick):
         """ Forces the prefetcher to load all of the pages and stores them in their appropriate objects """
@@ -270,84 +524,6 @@ class util:
 
             tick.date_pages.append(page)
 
-    def gather_prices(self):
-        """ Gathers the stock's historical prices """
-        for tick in self.tickers:
-            self.parse_prices_page(tick.historical_prices_page, tick)
-
-    def parse_prices_page(self, page, tick):
-        """ Parses each page and appends historical_price objects to the correct list """
-        # formatted as timestamp, volume, open, low, high, close
-        historical_data = [[], [], [], [], [], []]
-
-        index_list = [
-            '"timestamp":[',
-            '"volume":[',
-            '"open":[',
-            '"low":[',
-            '"high":[',
-            '"adjclose":[{"adjclose":'
-        ]
-
-        for i in range(6):
-            index_str = index_list[i]
-            index = page.text.index(index_str)
-            num = ""
-            start = False
-
-            for char in page.text[index:]:
-                if (char.isdigit()):
-                    start = True
-                if (start):
-                    if (char != ']'):
-                        if (char == ','):
-                            historical_data[i].append(float(num))
-                            num = ""
-                        else:
-                            num += char
-                    else:
-                        historical_data[i].append(float(num))
-                        break
-
-            historical_data[i].append(float(num))
-            historical_data[0] = list(set(historical_data[0]))
-
-        for i in range(len(historical_data[0])):
-            hp = historical_price(historical_data[0][i], historical_data[1][i], historical_data[2][i],
-                                  historical_data[3][i], historical_data[4][i], historical_data[5][i])
-            tick.prices.append(hp)
-
-    def gather_option_data(self):
-        # percentChange is the first thing in each formatting for the option, so do index for that and then collect that good good data
-        keyword_list = [
-            "percentChange", "openInterest", "change",
-            "strike", "inTheMoney", "impliedVolatility",
-            "volume", "contractSymbol", "ask",
-            "lastTradeDate", "contractSize", "expiration",
-            "currency", "bid", "lastPrice"
-        ]
-
-        for tick in self.tickers[:1]:
-            for date_page in tick.date_pages:
-                cont = True
-                page = date_page.text
-                index = page.index("percentChange")
-
-                while (cont):
-                    page = page[index+13:]
-
-                    # determines if it should continue searching for options
-                    try:
-                        index = page.index("percentChange")
-                    except:
-                        cont = False
-
-                    for key in keyword_list:
-                        print(key)
-                    # percentChange, openInterest, change, strike, inTheMoney, impliedVolatility,
-                    # volume, contractSymbol, ask, lastTradeDate, contractSize,
-                    # expiration, currency, bid, lastPrice
-
     def main(self):
         remove_list = []
 
@@ -360,8 +536,10 @@ class util:
             self.tickers.append(ticker(
                 symbol, self.ticker_dict[symbol][0], self.ticker_dict[symbol][1], self.ticker_dict[symbol][2]))
 
+        length = len(self.tickers)
         print("Prefetching webpages...")
-        self.prefetch_webpages()
+        bar = self.prefetch_webpages()
+        bar.update(length)
 
         for tick in self.tickers:
             if (len(tick.dates) == 0 or tick.historical_prices_page is None):
@@ -370,8 +548,13 @@ class util:
         for tick in remove_list:
             self.tickers.remove(tick)
 
+        print("Parsing prices and options data...")
         self.gather_prices()
         self.gather_option_data()
+        self.calculate_option_data()
+
+        print("Inserting data into databases...")
+        self.insert_db()
 
 
 if __name__ == "__main__":
