@@ -4,29 +4,34 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sqlite3.h>
 #include <sys/types.h>
 
 #include "screener.h"
+#include "util.h"
 #include "safe.h"
+
+long pl_size;
+struct historical_price **price_list;
 
 int main(int argc, char *argv[])
 {
    int mode, status, tl_size;
    pid_t pid;
-   char **tick_list;
+   char **tick_list = NULL;
 
    if ((pid = fork()) == 0) // if child, exec python program
    {
       printf("Collecting stock and option data...\n");
-      execlp("python3", "python3", "options_collector.py", (char *)NULL);
+      // execlp("python3", "python3", "options_collector.py", (char *)NULL);
 
-      printf("Unable to gather data]\n");
+      printf("Warning: Unable to gather data\n");
       exit(EXIT_FAILURE);
    }
 
    waitpid(pid, &status, 0);
 
-   tick_list = parse_args(argc, argv, &mode, &tl_size);
+   gather_tickers();
 
    free_all(tick_list, &tl_size);
 
@@ -67,8 +72,7 @@ char **parse_args(int argc, char *argv[], int *mode, int *tl_size)
 
          return tick_list;
       default: // if there is a usage error
-         fprintf(stderr, "usage: ./screener [ -o ] [ tickers ]\n");
-         fprintf(stderr, "usage: ./screener [ tickers ]\n");
+         fprintf(stderr, "usage: ./screener [ -oa ] [ tickers ]\n");
          exit(EXIT_FAILURE);
       }
    }

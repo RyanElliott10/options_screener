@@ -438,7 +438,7 @@ class util:
 
         # for options, the format is:
         # ticker, type, expiration date, dte, strike, volume, oi, bid, ask, last price, percent change, itm,
-        # iv20, iv50, iv100, theta, beta, gamma, vegas
+        # iv, iv20, iv50, iv100, theta, beta, gamma, vegas
         options_conn = sqlite3.connect("optionsData")
         options_curs = options_conn.cursor()
         options_curs.execute(
@@ -446,7 +446,7 @@ class util:
         options_curs.execute(
             "CREATE TABLE IF NOT EXISTS optionsData(ticker TEXT, type TEXT, expirationDate TEXT, dte REAL, strike REAL, " +
             "volume INTEGER, openInterest INTEGER, bid REAL, ask REAL, lastPrice REAL, percentChange REAL, itm TEXT, " +
-            "iv20 REAL, iv50 REAL, iv100 REAL, theta REAL, beta REAL, gamma REAL, vega REAL)")
+            "impliedVolatility REAL, iv20 REAL, iv50 REAL, iv100 REAL, theta REAL, beta REAL, gamma REAL, vega REAL)")
 
         for tick in self.tickers:
             for price in tick.prices:
@@ -456,26 +456,28 @@ class util:
 
             for call in tick.calls:
                 options_curs.execute("INSERT INTO optionsData VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " +
-                                     "?, ?, ?, ?, ?, ?)", (tick.symbol, "Call", call.expiration, call.dte, call.strike, call.volume,
+                                     "?, ?, ?, ?, ?, ?, ?)", (tick.symbol, "Call", call.expiration, call.dte, call.strike, call.volume,
                                                            call.open_interest, call.bid, call.ask, call.last_price, call.percent_change, str(
-                                                               call.itm), tick.iv20,
+                                                               call.itm), call.iv, tick.iv20,
                                                            tick.iv50, tick.iv100, call.theta, call.beta, call.gamma, call.vega))
             for put in tick.puts:
                 options_curs.execute("INSERT INTO optionsData VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " +
-                                     "?, ?, ?, ?, ?, ?)", (tick.symbol, "Put", put.expiration, put.dte, put.strike, put.volume,
+                                     "?, ?, ?, ?, ?, ?, ?)", (tick.symbol, "Put", put.expiration, put.dte, put.strike, put.volume,
                                                            put.open_interest, put.bid, put.ask, put.last_price, put.percent_change, str(
-                                                               put.itm), tick.iv20,
+                                                            put.itm), put.iv, tick.iv20,
                                                            tick.iv50, tick.iv100, put.theta, put.beta, put.gamma, put.vega))
             options_conn.commit()
 
     def prefetch_webpages(self):
         """ Utility function to prefetch webpages concurrently """
+        length = len(self.tickers)
+
         requests_cache.install_cache(
             'cache', backend='sqlite', expire_after=3600)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
             future_to_tickers = {executor.submit(
-                self.get_pages, tick): tick for tick in self.tickers}
+                self.get_pages, tick): tick for tick in self.tickers[:1]}
             bar = progressbar.ProgressBar(max_value=len(self.tickers))
             foo = 0
 
@@ -486,9 +488,8 @@ class util:
                 foo += 1
                 bar.update(foo)
 
-        bar.update(len(self.tickers))
+        bar.update(length)
         print()
-        return bar
 
     def get_pages(self, tick):
         """ Forces the prefetcher to load all of the pages and stores them in their appropriate objects """
@@ -536,10 +537,8 @@ class util:
             self.tickers.append(ticker(
                 symbol, self.ticker_dict[symbol][0], self.ticker_dict[symbol][1], self.ticker_dict[symbol][2]))
 
-        length = len(self.tickers)
         print("Prefetching webpages...")
-        bar = self.prefetch_webpages()
-        bar.update(length)
+        self.prefetch_webpages()
 
         for tick in self.tickers:
             if (len(tick.dates) == 0 or tick.historical_prices_page is None):
