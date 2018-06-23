@@ -3,7 +3,7 @@
 
 #include "screener.h"
 
-void gather_tickers(void);
+struct parent_stock **gather_tickers(long *pl_size);
 void format_historical_prices(struct parent_stock stock);
 void gather_data(void);
 int callback(void *NotUsed, int argc, char **argv, char **azColName);

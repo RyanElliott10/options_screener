@@ -128,10 +128,11 @@ struct option
 
 struct parent_stock
 {
-   struct option *calls;                  // list of all calls associated with stock
-   struct option *puts;                   // list of all puts associated with stock
-   struct historical_price *prices_list;  // list of all prices
-   char tick[10];                         // ticker symbol
+   struct option *calls;                   // list of all calls associated with stock
+   struct option *puts;                    // list of all puts associated with stock
+   struct historical_price **prices_list;  // list of all prices
+   long price_list_size;
+   char tick[10];                          // ticker symbol
    float yearly_high;
    float yearly_low;
    float curr_price;

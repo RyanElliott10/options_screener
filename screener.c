@@ -17,21 +17,28 @@ struct historical_price **price_list;
 int main(int argc, char *argv[])
 {
    int mode, status, tl_size;
+   long parent_list_size;
    pid_t pid;
    char **tick_list = NULL;
 
    if ((pid = fork()) == 0) // if child, exec python program
    {
       printf("Collecting stock and option data...\n");
-      // execlp("python3", "python3", "options_collector.py", (char *)NULL);
+      execlp("python3", "python3", "options_collector.py", (char *)NULL);
 
       printf("Warning: Unable to gather data\n");
       exit(EXIT_FAILURE);
    }
 
    waitpid(pid, &status, 0);
+   if (status)
+   {
+      printf("Warning: Unable to gather data\n");
+      exit(EXIT_FAILURE);
+   }
 
-   gather_tickers();
+   printf("Gathering historical stock prices from database...\n");
+   gather_tickers(&parent_list_size);
 
    free_all(tick_list, &tl_size);
 
