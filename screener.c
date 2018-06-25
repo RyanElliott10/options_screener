@@ -16,11 +16,13 @@ struct historical_price **price_list;
 
 int main(int argc, char *argv[])
 {
-   int i, j, mode, status, tl_size;
+   int mode, status, tl_size;
    long parent_array_size;
    pid_t pid;
    char **tick_list = NULL;
    struct parent_stock **parent_array;
+
+	mode = REGULAR;
 
    if ((pid = fork()) == 0) // if child, exec python program
    {
@@ -38,28 +40,17 @@ int main(int argc, char *argv[])
    //    exit(EXIT_FAILURE);
    // }
 
-   printf("Gathering historical stock prices from database...\n");
-   parent_array = gather_tickers(&parent_array_size);
-   gather_options(parent_array, parent_array_size);
-   // screen_volume_oi(parent_array, parent_array_size);
+	if (mode == REGULAR)
+	{
+		printf("Gathering historical stock prices from database...\n");
+		parent_array = gather_tickers(&parent_array_size);  // collects all historical data and stores in structs
 
-   for (i = 0; i < parent_array_size; i++)
-   {
-      for (j = 0; j < parent_array[i]->calls_size; j++)
-      {
-         printf("%s\t", parent_array[i]->calls[j]->ticker);
-         printf("%f\t", parent_array[i]->calls[j]->strike);
-         printf("%f\n", parent_array[i]->calls[j]->last_price);
-      }
-      for (j = 0; j < parent_array[i]->puts_size; j++)
-      {
-         printf("%s\t", parent_array[i]->puts[j]->ticker);
-         printf("%f\t", parent_array[i]->puts[j]->strike);
-         printf("%f\n", parent_array[i]->puts[j]->last_price);
-      }
-   }
+		gather_options(parent_array, parent_array_size);  // collects all data from database and stores in structs
+		screen_volume_oi_baspread(parent_array, parent_array_size);  // screens for volume/oi requirements, bid x ask spread
+		calc_basic_data(parent_array, parent_array_size);
 
-   free_all(tick_list, &tl_size);
+		free_all(tick_list, &tl_size);
+	}
 
    return 0;
 }
@@ -72,7 +63,6 @@ char **parse_args(int argc, char *argv[], int *mode, int *tl_size)
 
    i = 2;
    *tl_size = 0;
-   *mode = 0; // silences warnings
 
    if ((argc > 1) && (argv[1][0] == '-')) // if there is a flag
    {

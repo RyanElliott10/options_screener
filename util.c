@@ -1,3 +1,4 @@
+#include <math.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -33,6 +34,9 @@ struct parent_stock **gather_tickers(long *pa_size)
    {
       if (0 != strcmp(historical_price_array[i]->ticker, previous))
       {
+         if (i != 0)
+            find_curr_stock_price(parent_array[parent_array_size - 1]);
+
          memset(previous, 0, TICK_SIZE);
          strcpy(previous, historical_price_array[i]->ticker);
 
@@ -108,7 +112,7 @@ void gather_options(struct parent_stock **parent_array, long parent_array_size)
                                                                 ++(parent_array[parent_array_index]->calls_size) * sizeof(struct option *));
 
          parent_array[parent_array_index]->calls[parent_array[parent_array_index]->calls_size - 1] = safe_malloc(sizeof(struct option));
-
+         parent_array[parent_array_index]->calls[parent_array[parent_array_index]->calls_size - 1]->parent = parent_array[parent_array_index];
          copy_option(parent_array[parent_array_index]->calls[parent_array[parent_array_index]->calls_size - 1], all_options[i]);
       }
       else if (all_options[i]->type == 0)
@@ -117,7 +121,7 @@ void gather_options(struct parent_stock **parent_array, long parent_array_size)
                                                                ++(parent_array[parent_array_index]->puts_size) * sizeof(struct option *));
 
          parent_array[parent_array_index]->puts[parent_array[parent_array_index]->puts_size - 1] = safe_malloc(sizeof(struct option));
-
+         parent_array[parent_array_index]->puts[parent_array[parent_array_index]->puts_size - 1]->parent = parent_array[parent_array_index];
          copy_option(parent_array[parent_array_index]->puts[parent_array[parent_array_index]->puts_size - 1], all_options[i]);
       }
 
@@ -157,6 +161,8 @@ void copy_option(struct option *new_option, struct option *old)
       new_option->gamma = old->gamma;
       new_option->vega = old->vega;
    }
+
+   new_option->weight = old->weight;
 }
 
 void gather_options_data(void)
@@ -213,75 +219,206 @@ void gather_data(void)
    return;
 }
 
-/* Effectively removes options from the list if the volume/open interest isn't up to standards */
-void screen_volume_oi(struct parent_stock **parent_array, float parent_array_size)
+/* 
+ * Effectively removes options from the list if the volume/open interest isn't up to standards
+ * Also screens for bid x ask spread
+ */
+void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_array_size)
 {
    /*
-    * If you come across something that must be removed, don't remove it. Simply
-    * free all of the pointers associated with it and set the option struct to NULL,
-    * then incorporate NULL checks for whenever you're iterating through the list
+    * ALGORITHM/REQUIREMENTS:
+    * 
+    * if dte <= 30, min_vol = 2000 / (dte / 2)
+    * 
+    * The closer to the DTE, the more open interest/volume there must be. However, there may never 
+    * be any otion that has no volume (NOT OPEN INTEREST) below 10, no matter the DTE.
+    * If within one month of expiration, the option must have at least 134 volume on the day
     */
-
-   int outter_i, inner_i;
+   char removed;
+   unsigned short dte;
+   unsigned int outter_i, inner_i, volume, open_interest;
+   int min_vol;
 
    for (outter_i = 0; outter_i < parent_array_size; outter_i++)
    {
+      parent_array[outter_i]->num_open_calls = parent_array[outter_i]->calls_size;
+      parent_array[outter_i]->num_open_puts = parent_array[outter_i]->puts_size;
+
       for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++)
       {
+         removed = FALSE;
+         volume = parent_array[outter_i]->calls[inner_i]->volume;
+         open_interest = parent_array[outter_i]->calls[inner_i]->open_interest;
+         dte = parent_array[outter_i]->calls[inner_i]->days_til_expiration;
+
+         if (volume < 10 || open_interest < 100)
+            removed = TRUE;
+         if (!removed && dte < 30)
+         {
+            // honestly, this is a random equation. It basically says the closer to the dte,
+            // the larger the volume must be, so if dte = 2, volume must be at least 2000
+            min_vol = 2000 / (dte / 2);
+
+            if (volume < min_vol)
+               removed = TRUE;
+         }
+         if (!removed && bid_ask_spread(parent_array[outter_i]->calls[inner_i]))
+            removed = TRUE;
+
+         if (removed)
+         {
+            parent_array[outter_i]->calls[inner_i] = NULL;
+            parent_array[outter_i]->num_open_calls--;
+         }
       }
 
       for (inner_i = 0; inner_i < parent_array[outter_i]->puts_size; inner_i++)
       {
+         removed = FALSE;
+         volume = parent_array[outter_i]->puts[inner_i]->volume;
+         open_interest = parent_array[outter_i]->puts[inner_i]->open_interest;
+         dte = parent_array[outter_i]->puts[inner_i]->days_til_expiration;
+
+         if (volume < 10 || open_interest < 100)
+            removed = TRUE;
+         if (!removed && dte < 30)
+         {
+            // honestly, this is a random equation. It basically says the closer to the dte,
+            // the larger the volume must be, so if dte = 2, volume must be at least 2000
+            min_vol = 1000 / (dte / 2);
+
+            if (volume < min_vol)
+               removed = TRUE;
+         }
+
+         if (removed)
+         {
+            parent_array[outter_i]->puts[inner_i] = NULL;
+            parent_array[outter_i]->num_open_calls--;
+         }
       }
    }
 
    return;
 }
 
-void price_trend(struct parent_stock stock)
+/* Returns TRUE if it is beyond MAX_BID_ASK_ERROR */
+int bid_ask_spread(struct option *opt)
 {
+   float bid, ask, dif, mean, error;
+
+   bid = opt->bid;
+   ask = opt->ask;
+
+   mean = (bid + ask) / 2;
+
+   dif = bid - ask;
+   error = dif / mean;
+
+   if (error > MAX_BID_ASK_ERROR)
+      return TRUE;
+
+   return FALSE;
+}
+
+void calc_basic_data(struct parent_stock **parent_array, int parent_array_size)
+{
+   int outter_i, inner_i;
+
+   for (outter_i = 0; outter_i < parent_array_size; outter_i++)
+   {
+      for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++)
+      {
+         if (parent_array[outter_i]->calls[inner_i] != NULL)
+         {
+            perc_from_strike(parent_array[outter_i]->calls[inner_i]);
+            perc_from_ivs(parent_array[outter_i]->calls[inner_i]);
+            one_std_deviation(parent_array[outter_i]->calls[inner_i]);
+         }
+      }
+
+      for (inner_i = 0; inner_i < parent_array[outter_i]->puts_size; inner_i++)
+      {
+         if (parent_array[outter_i]->puts[inner_i] != NULL)
+         {
+            perc_from_strike(parent_array[outter_i]->puts[inner_i]);
+            perc_from_ivs(parent_array[outter_i]->puts[inner_i]);
+            one_std_deviation(parent_array[outter_i]->puts[inner_i]);
+         }
+      }
+   }
 
    return;
 }
 
-void bid_ask_spread(struct option opt)
+void perc_from_strike(struct option *opt)
 {
+   float dif, opt_strike, stock_curr_price;
+
+   opt_strike = opt->strike;
+   stock_curr_price = opt->parent->curr_price;
+
+   dif = opt_strike - stock_curr_price;
+   opt->perc_from_strike = dif / stock_curr_price;
 
    return;
 }
 
-void perc_from_strike(struct option opt)
+void perc_from_ivs(struct option *opt)
 {
+   float dif, opt_hv;
+
+   opt_hv = opt->implied_volatility;
+
+   dif = opt->iv20 - opt_hv;
+   opt->perc_from_iv20 = dif / opt->iv20;
+   dif = opt->iv50 - opt_hv;
+   opt->perc_from_iv50 = dif / opt->iv50;
+   dif = opt->iv100 - opt_hv;
+   opt->perc_from_iv100 = dif / opt->iv100;
 
    return;
 }
 
-void yearly_high_low(struct parent_stock stock)
+void one_std_deviation(struct option *opt)
 {
+   // formula: curr_price x (iv * 100) x SQRT(dte/365) = 1 std deviation
+   float dte_sqrt, std_deviation;
+
+   dte_sqrt = sqrt(opt->days_til_expiration / 365);
+   std_deviation = opt->parent->curr_price * opt->iv20 * dte_sqrt;
+
+   opt->one_std_deviation = std_deviation;
 
    return;
 }
 
-void perc_from_ivs(struct option opt)
+void yearly_high_low(struct parent_stock *stock)
 {
+
 
    return;
 }
 
-void iv_range(struct option opt)
+void price_trend(struct parent_stock *stock)
 {
+
 
    return;
 }
 
-void avg_open_close(struct parent_stock stock)
+void avg_stock_open_close(struct parent_stock *stock)
 {
+
 
    return;
 }
 
-void find_curr_price(struct parent_stock stock)
+void find_curr_stock_price(struct parent_stock *stock)
 {
+   int size = stock->price_array_size - 1;
+
+   stock->curr_price = stock->prices_array[size]->close;
 
    return;
 }
@@ -335,6 +472,8 @@ int options_callback(void *NotUsed, int argc, char **argv, char **azColName)
       all_options[all_options_size - 1]->gamma = atof(argv[18]);
       all_options[all_options_size - 1]->vega = atof(argv[19]);
    }
+
+   all_options[all_options_size - 1]->weight = 0;
 
    return 0;
 }

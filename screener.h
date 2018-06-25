@@ -18,6 +18,7 @@
  * Smaller bid/ask spread (heavier weighting)
  * Take into account analysts predictions
  * Profitability/revenue, growth estimates (heavier weighting for the better numbers)
+ * dte (higher weighting for options further out)
  * High beta (heavier weighting)
  */
 
@@ -124,6 +125,11 @@ struct option
    float gamma;
    float vega;
    float weight;
+   float perc_from_strike;
+   float perc_from_iv20;
+   float perc_from_iv50;
+   float perc_from_iv100;
+   float one_std_deviation;
 };
 
 struct parent_stock
@@ -132,8 +138,10 @@ struct parent_stock
    struct option **puts;                   // list of all puts associated with stock
    struct historical_price **prices_array; // list of all prices
    long price_array_size;
-   long calls_size;
-   long puts_size;
+   int calls_size;
+   int num_open_calls;
+   int puts_size;
+   int num_open_puts;
    char ticker[10]; // ticker symbol
    float yearly_high;
    float yearly_low;
