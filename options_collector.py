@@ -86,18 +86,23 @@ class util:
         self.ticker_dict = {}
 
     def download_files(self):
-        urls = [
-            "https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download",
-            "https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nyse&render=download",
-            "https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=amex&render=download"]
-        names = ["nasdaq.csv", "nyse.csv", "amex.csv"]
+        names = [
+            "nasdaq.csv",
+            "nyse.csv",
+            "amex.csv"
+        ]
+        # urls = [
+        #     "https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download",
+        #     "https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nyse&render=download",
+        #     "https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=amex&render=download"
+        # ]
 
-        for i, url in enumerate(urls):
-            resp = requests.get(url)
+        # for i, url in enumerate(urls):
+        #     resp = requests.get(url)
 
-            output = open(names[i], 'wb')
-            output.write(resp.content)
-            output.close()
+        #     output = open(names[i], 'wb')
+        #     output.write(resp.content)
+        #     output.close()
 
         for name in names:
             with open(name, 'rt') as filename:
@@ -477,7 +482,7 @@ class util:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
             future_to_tickers = {executor.submit(
-                self.get_pages, tick): tick for tick in self.tickers[:1]}
+                self.get_pages, tick): tick for tick in self.tickers}
             bar = progressbar.ProgressBar(max_value=len(self.tickers))
             foo = 0
 

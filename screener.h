@@ -102,10 +102,10 @@
 
 struct option
 {
-   struct parent_stock *parent;  // pointer to parent stock
-   char tick[10];                // ticker symbol
-   int type;                     // call/put (call = TRUE, put = FALSE)
-   long expiration_date;         // in epoch time
+   struct parent_stock *parent; // pointer to parent stock
+   char ticker[10];             // ticker symbol
+   int type;                    // call/put (call = TRUE, put = FALSE)
+   long expiration_date;        // in epoch time
    int days_til_expiration;
    float strike;
    long volume;
@@ -114,7 +114,7 @@ struct option
    float ask;
    float last_price;
    float percent_change;
-   int in_the_money;             // TRUE/FALSE
+   int in_the_money; // TRUE/FALSE
    float implied_volatility;
    float iv20;
    float iv50;
@@ -128,11 +128,13 @@ struct option
 
 struct parent_stock
 {
-   struct option *calls;                   // list of all calls associated with stock
-   struct option *puts;                    // list of all puts associated with stock
-   struct historical_price **prices_list;  // list of all prices
-   long price_list_size;
-   char tick[10];                          // ticker symbol
+   struct option **calls;                  // list of all calls associated with stock
+   struct option **puts;                   // list of all puts associated with stock
+   struct historical_price **prices_array; // list of all prices
+   long price_array_size;
+   long calls_size;
+   long puts_size;
+   char ticker[10]; // ticker symbol
    float yearly_high;
    float yearly_low;
    float curr_price;
