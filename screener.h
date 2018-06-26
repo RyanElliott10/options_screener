@@ -124,7 +124,7 @@ struct option
    float beta;
    float gamma;
    float vega;
-   float weight;
+   float weight;  // weight for the specigic option
    float perc_from_strike;
    float perc_from_iv20;
    float perc_from_iv50;
@@ -148,7 +148,11 @@ struct parent_stock
    float curr_price;
    float avg_open;
    float avg_close;
-   float weight;
+   float perc_from_year_high;
+   float perc_from_year_low;
+   float weight;        // weight to be given to ever option on stock
+   float calls_weight;  // weight to be given to every call of original stock
+   float puts_weight;   // weight to be given to every put of original stock
 };
 
 struct historical_price

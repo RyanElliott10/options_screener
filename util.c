@@ -47,6 +47,8 @@ struct parent_stock **gather_tickers(long *pa_size)
          strcpy(parent_array[parent_array_size - 1]->ticker, historical_price_array[i]->ticker);
          parent_array[parent_array_size - 1]->prices_array = safe_malloc(sizeof(struct historical_price *));
          parent_array[parent_array_size - 1]->weight = 0;
+         parent_array[parent_array_size - 1]->calls_weight = 0;
+         parent_array[parent_array_size - 1]->puts_weight = 0;
 
          price_array_size = 0;
       }
@@ -104,6 +106,7 @@ void gather_options(struct parent_stock **parent_array, long parent_array_size)
          parent_array[parent_array_index]->puts = safe_malloc(sizeof(struct option *));
          parent_array[parent_array_index]->calls_size = 0;
          parent_array[parent_array_index]->puts_size = 0;
+         parent_array[parent_array_index]->weight = 0;
       }
 
       // if the option is a call
@@ -246,6 +249,8 @@ void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_ar
       parent_array[outter_i]->num_open_calls = parent_array[outter_i]->calls_size;
       parent_array[outter_i]->num_open_puts = parent_array[outter_i]->puts_size;
       large_price_drop(parent_array[outter_i]);
+      avg_stock_close(parent_array[outter_i]);
+      perc_from_high_low(parent_array[outter_i]);
 
       for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++)
       {
@@ -321,6 +326,8 @@ int bid_ask_spread(struct option *opt)
    if (error > MAX_BID_ASK_ERROR)
       return TRUE;
 
+   opt->weight += error * 50;
+
    return FALSE;
 }
 
@@ -328,6 +335,9 @@ int bid_ask_spread(struct option *opt)
 void calc_basic_data(struct parent_stock **parent_array, int parent_array_size)
 {
    int outter_i, inner_i;
+   float weight;
+
+   printf("%4s\t%6s\t%8s\t%4s\t%5s\t\t%5s\t\t%6s\n", "Type", "Tick", "Strike", "DTE", "Bid", "Ask", "Weight");
 
    for (outter_i = 0; outter_i < parent_array_size; outter_i++)
    {
@@ -340,8 +350,12 @@ void calc_basic_data(struct parent_stock **parent_array, int parent_array_size)
             one_std_deviation(parent_array[outter_i]->calls[inner_i]);
             iv_below(parent_array[outter_i]->calls[inner_i]);
 
-            if ((parent_array[outter_i]->calls[inner_i]->weight + parent_array[outter_i]->calls[inner_i]->parent->weight) > 200)
-               printf("%s\t%f\t%f\n", parent_array[outter_i]->calls[inner_i]->ticker, parent_array[outter_i]->calls[inner_i]->strike, parent_array[outter_i]->calls[inner_i]->weight + parent_array[outter_i]->calls[inner_i]->parent->weight);
+            // printf("%f\n", parent_array[outter_i]->calls_weight);
+            weight = parent_array[outter_i]->calls[inner_i]->weight + parent_array[outter_i]->calls[inner_i]->parent->weight;
+            weight += parent_array[outter_i]->calls_weight;
+
+            if (weight > 300)
+               printf("%4s\t%6s\t%8f\t%4d\t%5f\t%5f\t%f\n", "Call", parent_array[outter_i]->calls[inner_i]->ticker, parent_array[outter_i]->calls[inner_i]->strike, parent_array[outter_i]->calls[inner_i]->days_til_expiration, parent_array[outter_i]->calls[inner_i]->bid, parent_array[outter_i]->calls[inner_i]->ask, weight);
          }
       }
 
@@ -354,8 +368,12 @@ void calc_basic_data(struct parent_stock **parent_array, int parent_array_size)
             one_std_deviation(parent_array[outter_i]->puts[inner_i]);
             iv_below(parent_array[outter_i]->puts[inner_i]);
 
-            if ((parent_array[outter_i]->puts[inner_i]->weight + parent_array[outter_i]->puts[inner_i]->parent->weight) > 200)
-               printf("%s\t%f\t%f\n", parent_array[outter_i]->puts[inner_i]->ticker, parent_array[outter_i]->puts[inner_i]->strike, parent_array[outter_i]->puts[inner_i]->weight + parent_array[outter_i]->puts[inner_i]->parent->weight);
+            // printf("%f\n", parent_array[outter_i]->puts_weight);
+            weight = parent_array[outter_i]->puts[inner_i]->weight + parent_array[outter_i]->puts[inner_i]->parent->weight;
+            weight += parent_array[outter_i]->puts_weight;
+
+            if (weight > 300)
+               printf("%4s\t%6s\t%8f\t%4d\t%5f\t%5f\t%f\n", "Put", parent_array[outter_i]->puts[inner_i]->ticker, parent_array[outter_i]->puts[inner_i]->strike, parent_array[outter_i]->puts[inner_i]->days_til_expiration, parent_array[outter_i]->puts[inner_i]->bid, parent_array[outter_i]->puts[inner_i]->ask, weight);
          }
       }
    }
@@ -373,6 +391,8 @@ void perc_from_strike(struct option *opt)
 
    dif = opt_strike - stock_curr_price;
    opt->perc_from_strike = dif / stock_curr_price;
+
+   opt->weight += 100 - (opt->perc_from_strike * 100);
 
    return;
 }
@@ -445,11 +465,36 @@ void iv_below(struct option *opt)
 
 void perc_from_high_low(struct parent_stock *stock)
 {
+   int i;
+   float dif, low, high, weight;
 
-}
+   low = INT64_MAX;
+   high = 0;
 
-void yearly_high_low(struct parent_stock *stock)
-{
+   for (i = 0; i < stock->price_array_size; i++)
+   {
+      if (stock->prices_array[i]->close < low)
+         low = stock->prices_array[i]->close;
+      else if (stock->prices_array[i]->close > high)
+         high = stock->prices_array[i]->close;
+   }
+
+   stock->yearly_low = low;
+   stock->yearly_high = high;
+
+   dif = low - stock->curr_price;
+   dif = (dif < 0 ? dif *= -1 : dif);
+
+   stock->perc_from_year_low = (dif / stock->curr_price) * 100;
+   stock->perc_from_year_high = ((high - stock->curr_price) / stock->curr_price) * 100;
+
+   // weight to be assigned given percent from low
+   weight = 100 - (stock->perc_from_year_low * 100);
+   stock->calls_weight += weight;
+
+   // weight to be assigned given percent from high
+   weight = 100 - (stock->perc_from_year_high * 100);
+   stock->puts_weight += weight;
 
    return;
 }
@@ -457,11 +502,6 @@ void yearly_high_low(struct parent_stock *stock)
 void price_trend(struct parent_stock *stock)
 {
 
-   // stock->calls_weight +=
-   // stock->puts_weight -=
-
-   // stock->calls_weight -=
-   // stock->puts_weight +=
    return;
 }
 
@@ -501,7 +541,7 @@ void large_price_drop(struct parent_stock *stock)
 
       change = (change < 0 ? change *= -1 : change);  // since abs() only works on ints
 
-      if (change >= 7.5)
+      if (change * 100 >= 7.5)
          stock->weight += 100 * (change / 7.5);
    }
 
@@ -509,7 +549,7 @@ void large_price_drop(struct parent_stock *stock)
    change = (stock->prices_array[starting_index]->close - stock->prices_array[i-1]->close) / stock->prices_array[starting_index]->close;
    change = (change < 0 ? change *= -1 : change);  // since abs() only works on ints
 
-   if (change >= 10)
+   if (change * 100>= 10)
       stock->weight += 100 * (change / 10);
 
    return;
