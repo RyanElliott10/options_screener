@@ -46,6 +46,7 @@ struct parent_stock **gather_tickers(long *pa_size)
          memset(parent_array[parent_array_size - 1]->ticker, 0, TICK_SIZE);
          strcpy(parent_array[parent_array_size - 1]->ticker, historical_price_array[i]->ticker);
          parent_array[parent_array_size - 1]->prices_array = safe_malloc(sizeof(struct historical_price *));
+         parent_array[parent_array_size - 1]->weight = 0;
 
          price_array_size = 0;
       }
@@ -126,7 +127,6 @@ void gather_options(struct parent_stock **parent_array, long parent_array_size)
       }
 
       free(all_options[i]);
-      // printf("%s\t%d\t%d\t%f\t%f\t%d\n", all_options[i]->ticker, all_options[i]->type, all_options[i]->days_til_expiration, all_options[i]->strike, all_options[i]->last_price, all_options[i]->in_the_money);
    }
 
    return;
@@ -165,6 +165,7 @@ void copy_option(struct option *new_option, struct option *old)
    new_option->weight = old->weight;
 }
 
+/* Gathers all options data from database */
 void gather_options_data(void)
 {
    int rc;
@@ -192,6 +193,7 @@ void gather_options_data(void)
    return;
 }
 
+/* Gathers all historical pricing data from database */
 void gather_data(void)
 {
    int rc;
@@ -243,6 +245,7 @@ void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_ar
    {
       parent_array[outter_i]->num_open_calls = parent_array[outter_i]->calls_size;
       parent_array[outter_i]->num_open_puts = parent_array[outter_i]->puts_size;
+      large_price_drop(parent_array[outter_i]);
 
       for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++)
       {
@@ -321,6 +324,7 @@ int bid_ask_spread(struct option *opt)
    return FALSE;
 }
 
+/* Calculates all basic data on calls and puts */
 void calc_basic_data(struct parent_stock **parent_array, int parent_array_size)
 {
    int outter_i, inner_i;
@@ -334,6 +338,10 @@ void calc_basic_data(struct parent_stock **parent_array, int parent_array_size)
             perc_from_strike(parent_array[outter_i]->calls[inner_i]);
             perc_from_ivs(parent_array[outter_i]->calls[inner_i]);
             one_std_deviation(parent_array[outter_i]->calls[inner_i]);
+            iv_below(parent_array[outter_i]->calls[inner_i]);
+
+            if ((parent_array[outter_i]->calls[inner_i]->weight + parent_array[outter_i]->calls[inner_i]->parent->weight) > 200)
+               printf("%s\t%f\t%f\n", parent_array[outter_i]->calls[inner_i]->ticker, parent_array[outter_i]->calls[inner_i]->strike, parent_array[outter_i]->calls[inner_i]->weight + parent_array[outter_i]->calls[inner_i]->parent->weight);
          }
       }
 
@@ -344,6 +352,10 @@ void calc_basic_data(struct parent_stock **parent_array, int parent_array_size)
             perc_from_strike(parent_array[outter_i]->puts[inner_i]);
             perc_from_ivs(parent_array[outter_i]->puts[inner_i]);
             one_std_deviation(parent_array[outter_i]->puts[inner_i]);
+            iv_below(parent_array[outter_i]->puts[inner_i]);
+
+            if ((parent_array[outter_i]->puts[inner_i]->weight + parent_array[outter_i]->puts[inner_i]->parent->weight) > 200)
+               printf("%s\t%f\t%f\n", parent_array[outter_i]->puts[inner_i]->ticker, parent_array[outter_i]->puts[inner_i]->strike, parent_array[outter_i]->puts[inner_i]->weight + parent_array[outter_i]->puts[inner_i]->parent->weight);
          }
       }
    }
@@ -351,6 +363,7 @@ void calc_basic_data(struct parent_stock **parent_array, int parent_array_size)
    return;
 }
 
+/* Finds percent from stock's current price */
 void perc_from_strike(struct option *opt)
 {
    float dif, opt_strike, stock_curr_price;
@@ -364,6 +377,7 @@ void perc_from_strike(struct option *opt)
    return;
 }
 
+/* Calculates the distance from all of the different IV levels */
 void perc_from_ivs(struct option *opt)
 {
    float dif, opt_hv;
@@ -380,22 +394,62 @@ void perc_from_ivs(struct option *opt)
    return;
 }
 
+/* Formula: curr_price x iv x SQRT(dte/365) = 1 std deviation */
 void one_std_deviation(struct option *opt)
 {
-   // formula: curr_price x (iv * 100) x SQRT(dte/365) = 1 std deviation
-   float dte_sqrt, std_deviation;
+   double iv, dte_sqrt;
+   float range[2];
 
-   dte_sqrt = sqrt(opt->days_til_expiration / 365);
-   std_deviation = opt->parent->curr_price * opt->iv20 * dte_sqrt;
+   if (opt->days_til_expiration <= 30)
+      iv = opt->iv20;
+   else if (opt->days_til_expiration <= 365 / 4)
+      iv = opt->iv50;
+   else
+      iv = opt->iv100;
 
-   opt->one_std_deviation = std_deviation;
+   dte_sqrt = sqrt((double)opt->days_til_expiration / 365);
+   opt->one_std_deviation = opt->parent->curr_price * (iv / 100) * dte_sqrt;
+
+   range[0] = opt->parent->curr_price - opt->one_std_deviation;
+   range[1] = opt->parent->curr_price + opt->one_std_deviation;
+
+   if (opt->strike > range[0] && opt->strike < range[1])
+   {
+      opt->weight += 100;  // idk about this one, ryan. you're just being lazy here
+   }
 
    return;
 }
 
-void yearly_high_low(struct parent_stock *stock)
+/* 
+ * Formula:
+ * weight = (ivx - iv / ivx) * 100
+ */
+void iv_below(struct option *opt)
+{
+   float iv, dif;
+
+   iv = opt->implied_volatility;
+
+   if (opt->days_til_expiration <= 30)
+      dif = (opt->iv20 - iv) / opt->iv20;
+   else if (opt->days_til_expiration <= 365 / 4)
+      dif = (opt->iv50 - iv) / opt->iv50;
+   else
+      dif = (opt->iv100 - iv) / opt->iv100;
+
+   opt->weight += (dif * 100);
+
+   return;
+}
+
+void perc_from_high_low(struct parent_stock *stock)
 {
 
+}
+
+void yearly_high_low(struct parent_stock *stock)
+{
 
    return;
 }
@@ -403,13 +457,60 @@ void yearly_high_low(struct parent_stock *stock)
 void price_trend(struct parent_stock *stock)
 {
 
+   // stock->calls_weight +=
+   // stock->puts_weight -=
+
+   // stock->calls_weight -=
+   // stock->puts_weight +=
+   return;
+}
+
+void avg_stock_close(struct parent_stock *stock)
+{
+   int i;
+   float total;
+
+   total = 0;
+
+   for (i = 0; i < stock->price_array_size; i++)
+      total += stock->prices_array[i]->close;
+
+   stock->avg_close = total / i;
 
    return;
 }
 
-void avg_stock_open_close(struct parent_stock *stock)
+void large_price_drop(struct parent_stock *stock)
 {
+   int i, starting_index;
+   float change, previous;
 
+   starting_index = (stock -> price_array_size <= 100 ? 0 : stock->price_array_size - 30);
+
+   previous = 0;
+
+   for (i = starting_index; i < stock->price_array_size; i++)
+   {
+      if (i == 0 || i == starting_index)
+      {
+         previous = stock->prices_array[i]->close;
+         continue;
+      }
+
+      change = (previous - stock->prices_array[i]->close) / previous;
+
+      change = (change < 0 ? change *= -1 : change);  // since abs() only works on ints
+
+      if (change >= 7.5)
+         stock->weight += 100 * (change / 7.5);
+   }
+
+   // finding total change over the period
+   change = (stock->prices_array[starting_index]->close - stock->prices_array[i-1]->close) / stock->prices_array[starting_index]->close;
+   change = (change < 0 ? change *= -1 : change);  // since abs() only works on ints
+
+   if (change >= 10)
+      stock->weight += 100 * (change / 10);
 
    return;
 }

@@ -148,6 +148,7 @@ struct parent_stock
    float curr_price;
    float avg_open;
    float avg_close;
+   float weight;
 };
 
 struct historical_price
