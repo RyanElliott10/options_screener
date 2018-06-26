@@ -91,18 +91,18 @@ class util:
             "nyse.csv",
             "amex.csv"
         ]
-        # urls = [
-        #     "https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download",
-        #     "https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nyse&render=download",
-        #     "https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=amex&render=download"
-        # ]
+        urls = [
+            "https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download",
+            "https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nyse&render=download",
+            "https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=amex&render=download"
+        ]
 
-        # for i, url in enumerate(urls):
-        #     resp = requests.get(url)
+        for i, url in enumerate(urls):
+            resp = requests.get(url)
 
-        #     output = open(names[i], 'wb')
-        #     output.write(resp.content)
-        #     output.close()
+            output = open(names[i], 'wb')
+            output.write(resp.content)
+            output.close()
 
         for name in names:
             with open(name, 'rt') as filename:
