@@ -1,7 +1,7 @@
 CC     = gcc
 CFLAGS = -pedantic -Wall -g
 BFLAGS = -lsqlite3
-OBJS   = screener.o util.o safe.o
+OBJS   = screener.o general_stocks.o options.o safe.o
 MAIN   = screener
 
 screener : $(OBJS)
@@ -10,8 +10,11 @@ screener : $(OBJS)
 screener.o : screener.c screener.h
 	$(CC) $(CFLAGS) -c screener.c
 
-util.o : util.c util.h
-	$(CC) $(CFLAGS) -c util.c
+general_stocks.o : general_stocks.c general_stocks.h
+	$(CC) $(CFLAGS) -c general_stocks.c
+
+options.o : options.c options.h
+	$(CC) $(CFLAGS) -c options.c
 
 safe.o : safe.c safe.h
 	$(CC) $(CFLAGS) -c safe.c

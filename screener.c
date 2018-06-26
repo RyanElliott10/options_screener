@@ -8,7 +8,8 @@
 #include <sys/types.h>
 
 #include "screener.h"
-#include "util.h"
+#include "general_stocks.h"
+#include "options.h"
 #include "safe.h"
 
 long pl_size;
@@ -20,6 +21,7 @@ int main(int argc, char *argv[])
    long parent_array_size;
    pid_t pid;
    char **tick_list = NULL;
+	char max_price[10], min_weight[6];
    struct parent_stock **parent_array;
 
 	mode = REGULAR;
@@ -42,12 +44,18 @@ int main(int argc, char *argv[])
 
 	if (mode == REGULAR)
 	{
+		printf("Maximum option price: ");
+		fgets(max_price,10,stdin);
+
+		printf("Minimum weight: ");
+		fgets(min_weight,6,stdin);
+
 		printf("Gathering historical stock prices from database...\n");
 		parent_array = gather_tickers(&parent_array_size);  // collects all historical data and stores in structs
 
 		gather_options(parent_array, parent_array_size);  // collects all data from database and stores in structs
 		screen_volume_oi_baspread(parent_array, parent_array_size);  // screens for volume/oi requirements, bid x ask spread
-		calc_basic_data(parent_array, parent_array_size);
+		calc_basic_data(parent_array, parent_array_size, atof(max_price), atof(min_weight));
 
 		free_all(tick_list, &tl_size);
 	}
