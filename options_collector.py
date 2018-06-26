@@ -462,15 +462,15 @@ class util:
             for call in tick.calls:
                 options_curs.execute("INSERT INTO optionsData VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " +
                                      "?, ?, ?, ?, ?, ?, ?)", (tick.symbol, "Call", call.expiration, call.dte, call.strike, call.volume,
-                                                           call.open_interest, call.bid, call.ask, call.last_price, call.percent_change, str(
-                                                               call.itm), call.iv, tick.iv20,
-                                                           tick.iv50, tick.iv100, call.theta, call.beta, call.gamma, call.vega))
+                                                              call.open_interest, call.bid, call.ask, call.last_price, call.percent_change, str(
+                                                                  call.itm), call.iv, tick.iv20,
+                                                              tick.iv50, tick.iv100, call.theta, call.beta, call.gamma, call.vega))
             for put in tick.puts:
                 options_curs.execute("INSERT INTO optionsData VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " +
                                      "?, ?, ?, ?, ?, ?, ?)", (tick.symbol, "Put", put.expiration, put.dte, put.strike, put.volume,
-                                                           put.open_interest, put.bid, put.ask, put.last_price, put.percent_change, str(
-                                                            put.itm), put.iv, tick.iv20,
-                                                           tick.iv50, tick.iv100, put.theta, put.beta, put.gamma, put.vega))
+                                                              put.open_interest, put.bid, put.ask, put.last_price, put.percent_change, str(
+                                                                  put.itm), put.iv, tick.iv20,
+                                                              tick.iv50, tick.iv100, put.theta, put.beta, put.gamma, put.vega))
             options_conn.commit()
 
     def prefetch_webpages(self):

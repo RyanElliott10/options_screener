@@ -166,8 +166,9 @@ struct historical_price
    long volume;
 };
 
+void print_data(struct parent_stock **parent_array, int parent_array_size, float max_option_price, float min_weight);
+int callback(void *NotUsed, int argc, char **argv, char **azColName);
 char **parse_args(int argc, char *argv[], int *mode, int *tl_size);
 void free_all(char **tick_list, int *tl_size);
-int callback(void *NotUsed, int argc, char **argv, char **azColName);
 
 #endif
