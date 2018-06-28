@@ -193,3 +193,36 @@ int options_callback(void *NotUsed, int argc, char **argv, char **azColName)
 
 	return 0;
 }
+
+void copy_option(struct option *new_option, struct option *old)
+{
+	memset(new_option->ticker, 0, 10);
+	strcpy(new_option->ticker, old->ticker);
+
+	new_option->type = old->type; // call if TRUE, put is FALSE
+	new_option->expiration_date = old->expiration_date;
+	new_option->days_til_expiration = old->days_til_expiration;
+	new_option->strike = old->strike;
+	new_option->volume = old->volume;
+	new_option->open_interest = old->open_interest;
+	new_option->bid = old->bid;
+	new_option->ask = old->ask;
+	new_option->last_price = old->last_price;
+	new_option->percent_change = old->percent_change;
+	new_option->in_the_money = old->in_the_money;
+	new_option->implied_volatility = old->implied_volatility;
+	new_option->iv20 = old->iv20;
+	new_option->iv50 = old->iv50;
+	new_option->iv100 = old->iv100;
+
+	// protects against NULL values
+	if (old->theta && old->beta && old->gamma && old->vega)
+	{
+		new_option->theta = old->theta;
+		new_option->beta = old->beta;
+		new_option->gamma = old->gamma;
+		new_option->vega = old->vega;
+	}
+
+	new_option->weight = old->weight;
+}

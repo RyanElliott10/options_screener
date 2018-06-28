@@ -17,15 +17,16 @@ struct historical_price **price_list;
 
 int main(int argc, char *argv[])
 {
-	int mode, cont, status, tl_size;
+	int fd, mode, cont, status, ta_size, saved_stdout;
 	long parent_array_size;
 	pid_t pid;
-	char **tick_list = NULL;
-	char max_price[10], min_weight[6], skip_option[10];
+	char **tick_array = NULL;
+	char max_price[10], min_weight[6], skip_option[10], write_to_file[10], *newname;
 	struct parent_stock **parent_array;
 
 	mode = REGULAR;
 	cont = TRUE;
+	ta_size = 0;
 
 	printf("Skip fetching webpages? ");
 	fgets(skip_option, 10, stdin);
@@ -40,7 +41,7 @@ int main(int argc, char *argv[])
 			execlp("python3", "python3", "options_collector.py", (char *)NULL);
 
 			printf("Warning: Unable to gather data\n");
-			exit(EXIT_FAILURE);
+			exit(EXIT_FAILURE); // if it reaches this point, the exec failed and the program should quit running
 		}
 
 		waitpid(pid, &status, 0);
@@ -68,6 +69,11 @@ int main(int argc, char *argv[])
 		// just calculates data from those data points and determines the weights
 
 		// printing all data
+
+		// printing largest volumes of the day
+
+		// print_large_volumes(parent_array, parent_array_size);
+
 		while (TRUE)
 		{
 			printf("Maximum option price ('q' to quit): ");
@@ -80,31 +86,48 @@ int main(int argc, char *argv[])
 			if (strstr(min_weight, "q") || strstr(min_weight, "Q"))
 				break;
 
+			fd = STDOUT_FILENO;
 			print_data(parent_array, parent_array_size, atof(max_price), atof(min_weight));
+
+			printf("Write to text file (Y filename)? ");
+			fgets(write_to_file, 100, stdin);
+
+			if (strstr(write_to_file, "y") || strstr(write_to_file, "Y"))
+			{
+				newname = strstr(write_to_file, " ") + 1;
+				fd = open(newname, O_CREAT | O_WRONLY, 0666);
+
+				saved_stdout = dup(STDOUT_FILENO);
+				dup2(fd, STDOUT_FILENO);
+
+				print_data(parent_array, parent_array_size, atof(max_price), atof(min_weight));
+				dup2(saved_stdout, STDOUT_FILENO);
+			}
 		}
+
+		free_parent_array(parent_array, parent_array_size);
 	}
 
-	if (FALSE)
-		free_all(tick_list, &tl_size);
+	free_tick_array(tick_array, ta_size);
 
 	return 0;
 }
 
 /* parses argv, decides which mode to use, creates list containing personalized stocks, if necessary */
-char **parse_args(int argc, char *argv[], int *mode, int *tl_size)
+char **parse_args(int argc, char *argv[], int *mode, int *ta_size)
 {
 	int i;
-	char **tick_list = safe_malloc(sizeof(char *));
+	char **tick_array = safe_malloc(sizeof(char *));
 
 	i = 2;
-	*tl_size = 0;
+	*ta_size = 0;
 
 	if ((argc > 1) && (argv[1][0] == '-')) // if there is a flag
 	{
 		switch (argv[1][1]) // determine which flag they inputted
 		{
 		case 'o': // if they want to only use input stocks
-			 // fall-through
+					 // fall-through
 			*mode = NEW_STOCKS;
 		case 'a': // if they want to append stocks
 			if (*mode != NEW_STOCKS)
@@ -112,13 +135,13 @@ char **parse_args(int argc, char *argv[], int *mode, int *tl_size)
 
 			for (; i < argc; i++) // collect all desired tickers
 			{
-				tick_list = safe_realloc(tick_list, ++(*tl_size) * sizeof(char *));
-				tick_list[*tl_size - 1] = safe_malloc(sizeof(char));
+				tick_array = safe_realloc(tick_array, ++(*ta_size) * sizeof(char *));
+				tick_array[*ta_size - 1] = safe_malloc(sizeof(char));
 
-				strcpy(tick_list[*tl_size - 1], argv[i]);
+				strcpy(tick_array[*ta_size - 1], argv[i]);
 			}
 
-			return tick_list;
+			return tick_array;
 		default: // if there is a usage error
 			fprintf(stderr, "usage: ./screener [ -oa ] [ tickers ]\n");
 			exit(EXIT_FAILURE);
@@ -129,25 +152,18 @@ char **parse_args(int argc, char *argv[], int *mode, int *tl_size)
 	return NULL;
 }
 
-/* frees all mallocs made in main, or functions called by main */
-void free_all(char **tick_list, int *tl_size)
-{
-	int i;
-
-	for (i = 0; i < *tl_size; i++)
-		free(tick_list[i]);
-}
-
 void print_data(struct parent_stock **parent_array, int parent_array_size, float max_option_price, float min_weight)
 {
 	int printed, outter_i, inner_i;
 	float weight;
 
-	printf("%4s\t%6s\t%8s\t%4s\t%5s\t\t%5s\t\t%6s\n", "Type", "Tick", "Strike", "DTE", "Bid", "Ask", "Weight");
+	printf("TYPE\t  TICK\t  STRIKE\t DTE\t  BID\t  ASK\tWEIGHT\n");
+	printf("----------------------------------------------------------------------------------\n");
 
 	for (outter_i = 0; outter_i < parent_array_size; outter_i++)
 	{
 		printed = FALSE;
+
 		for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++)
 		{
 			if (parent_array[outter_i]->calls[inner_i] != NULL)
@@ -157,7 +173,11 @@ void print_data(struct parent_stock **parent_array, int parent_array_size, float
 				weight += parent_array[outter_i]->calls_weight;
 
 				if (weight > min_weight && parent_array[outter_i]->calls[inner_i]->bid < max_option_price)
-					printf("%4s\t%6s\t%8f\t%4d\t%5f\t%5f\t%f\n", "Call", parent_array[outter_i]->calls[inner_i]->ticker, parent_array[outter_i]->calls[inner_i]->strike, parent_array[outter_i]->calls[inner_i]->days_til_expiration, parent_array[outter_i]->calls[inner_i]->bid, parent_array[outter_i]->calls[inner_i]->ask, weight);
+				{
+					printf("Call\t%6s\t%8f\t%4d\t%5f\t%5f\t%f\n", parent_array[outter_i]->calls[inner_i]->ticker,
+							 parent_array[outter_i]->calls[inner_i]->strike, parent_array[outter_i]->calls[inner_i]->days_til_expiration,
+							 parent_array[outter_i]->calls[inner_i]->bid, parent_array[outter_i]->calls[inner_i]->ask, parent_array[outter_i]->calls[inner_i]->weight);
+				}
 			}
 		}
 
@@ -170,11 +190,131 @@ void print_data(struct parent_stock **parent_array, int parent_array_size, float
 				weight += parent_array[outter_i]->puts_weight;
 
 				if (weight > min_weight && parent_array[outter_i]->puts[inner_i]->bid < max_option_price)
-					printf("%4s\t%6s\t%8f\t%4d\t%5f\t%5f\t%f\n", "Put", parent_array[outter_i]->puts[inner_i]->ticker, parent_array[outter_i]->puts[inner_i]->strike, parent_array[outter_i]->puts[inner_i]->days_til_expiration, parent_array[outter_i]->puts[inner_i]->bid, parent_array[outter_i]->puts[inner_i]->ask, weight);
+				{
+					printf("Put \t%6s\t%8f\t%4d\t%5f\t%5f\t%f\n", parent_array[outter_i]->puts[inner_i]->ticker,
+							 parent_array[outter_i]->puts[inner_i]->strike, parent_array[outter_i]->puts[inner_i]->days_til_expiration,
+							 parent_array[outter_i]->puts[inner_i]->bid, parent_array[outter_i]->puts[inner_i]->ask, parent_array[outter_i]->puts[inner_i]->weight);
+				}
 			}
 		}
 
-		if (printed)
+		if (printed == TRUE)
 			printf("\n");
 	}
+
+	return;
+}
+
+/* frees all mallocs made in main, or functions called by main */
+void free_tick_array(char **tick_array, int ta_size)
+{
+	int i;
+
+	for (i = 0; i < ta_size; i++)
+		free(tick_array[i]);
+
+	return;
+}
+
+void free_parent_array(struct parent_stock **parent_array, int parent_array_size)
+{
+	int outter_i, inner_i;
+
+	for (outter_i = 0; outter_i < parent_array_size; outter_i++)
+	{
+		for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++)
+		{
+			if (parent_array[outter_i]->calls[inner_i] != NULL)
+				free(parent_array[outter_i]->calls[inner_i]);
+		}
+
+		for (inner_i = 0; inner_i < parent_array[outter_i]->puts_size; inner_i++)
+		{
+			if (parent_array[outter_i]->puts[inner_i] != NULL)
+				free(parent_array[outter_i]->puts[inner_i]);
+		}
+
+		free(parent_array[outter_i]);
+	}
+
+	return;
+}
+
+void print_large_volumes(struct parent_stock **parent_array, int parent_array_size)
+{
+	int count, min_vol, outter_i, inner_i, min_vol_index;
+	struct option *largest_volumes[MIN_VOL_LENGTH];
+
+	count = 0;
+	min_vol = 0;
+	min_vol_index = 0;
+
+	for (outter_i = 0; outter_i < parent_array_size; outter_i++)
+	{
+		for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++)
+		{
+			if (parent_array[outter_i]->calls[inner_i] != NULL)
+			{
+				count++;
+
+				if (count < MIN_VOL_LENGTH)
+				{
+					copy_option(largest_volumes[count], parent_array[outter_i]->calls[inner_i]);
+					if (parent_array[outter_i]->calls[inner_i]->volume > min_vol)
+					{
+						min_vol = parent_array[outter_i]->calls[inner_i]->volume;
+						min_vol_index = count;
+					}
+				}
+				else if (parent_array[outter_i]->calls[inner_i]->volume > min_vol)
+				{
+					copy_option(largest_volumes[min_vol_index], parent_array[outter_i]->calls[inner_i]);
+					find_min_vol(largest_volumes, &min_vol, &min_vol_index);
+				}
+			}
+		}
+
+		for (inner_i = 0; inner_i < parent_array[outter_i]->puts_size; inner_i++)
+		{
+			if (parent_array[outter_i]->puts[inner_i] != NULL)
+			{
+				count++;
+
+				if (count < MIN_VOL_LENGTH)
+				{
+					copy_option(largest_volumes[count], parent_array[outter_i]->puts[inner_i]);
+					if (parent_array[outter_i]->puts[inner_i]->volume > min_vol)
+					{
+						min_vol = parent_array[outter_i]->puts[inner_i]->volume;
+						min_vol_index = count;
+					}
+				}
+				else if (parent_array[outter_i]->puts[inner_i]->volume > min_vol)
+				{
+					copy_option(largest_volumes[min_vol_index], parent_array[outter_i]->puts[inner_i]);
+					find_min_vol(largest_volumes, &min_vol, &min_vol_index);
+				}
+			}
+		}
+	}
+
+	return;
+}
+
+void find_min_vol(struct option **largest_volumes, int *min_vol, int *min_vol_index)
+{
+	int i;
+
+	*min_vol = INT32_MAX;
+
+	for (i = 0; i < MIN_VOL_LENGTH; i++)
+	{
+		if (largest_volumes[i]->volume < *min_vol)
+		{
+			*min_vol = largest_volumes[i]->volume;
+			*min_vol_index = i;
+		}
+	}
+
+	return;
 }

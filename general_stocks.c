@@ -73,39 +73,6 @@ void gather_options(struct parent_stock **parent_array, long parent_array_size)
 	return;
 }
 
-void copy_option(struct option *new_option, struct option *old)
-{
-	memset(new_option->ticker, 0, 10);
-	strcpy(new_option->ticker, old->ticker);
-
-	new_option->type = old->type; // call if TRUE, put is FALSE
-	new_option->expiration_date = old->expiration_date;
-	new_option->days_til_expiration = old->days_til_expiration;
-	new_option->strike = old->strike;
-	new_option->volume = old->volume;
-	new_option->open_interest = old->open_interest;
-	new_option->bid = old->bid;
-	new_option->ask = old->ask;
-	new_option->last_price = old->last_price;
-	new_option->percent_change = old->percent_change;
-	new_option->in_the_money = old->in_the_money;
-	new_option->implied_volatility = old->implied_volatility;
-	new_option->iv20 = old->iv20;
-	new_option->iv50 = old->iv50;
-	new_option->iv100 = old->iv100;
-
-	// protects against NULL values
-	if (old->theta && old->beta && old->gamma && old->vega)
-	{
-		new_option->theta = old->theta;
-		new_option->beta = old->beta;
-		new_option->gamma = old->gamma;
-		new_option->vega = old->vega;
-	}
-
-	new_option->weight = old->weight;
-}
-
 /* Gathers all options data from database */
 void gather_options_data(void)
 {
@@ -152,7 +119,7 @@ void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_ar
 	char removed;
 	unsigned short dte;
 	unsigned int outter_i, inner_i, volume, open_interest;
-	int min_vol;
+	float min_vol;
 
 	for (outter_i = 0; outter_i < parent_array_size; outter_i++)
 	{
@@ -175,7 +142,10 @@ void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_ar
 			{
 				// honestly, this is a random equation. It basically says the closer to the dte,
 				// the larger the volume must be, so if dte = 2, volume must be at least 2000
-				min_vol = 2000 / (dte / 2);
+				if (dte <= 1)
+					removed = TRUE;
+				else
+					min_vol = 2000 / (dte / 2);
 
 				if (volume < min_vol)
 					removed = TRUE;
@@ -203,7 +173,10 @@ void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_ar
 			{
 				// honestly, this is a random equation. It basically says the closer to the dte,
 				// the larger the volume must be, so if dte = 2, volume must be at least 2000
-				min_vol = 1000 / (dte / 2);
+				if (dte <= 1)
+					removed = TRUE;
+				else
+					min_vol = 2000 / (dte / 2);
 
 				if (volume < min_vol)
 					removed = TRUE;

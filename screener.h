@@ -1,7 +1,8 @@
 #ifndef _H_SCREENER
 #define _H_SCREENER
 
-/* Goes thorugh all tickers, looking for low IV, low prices, but historical prices/IV
+/* 
+ * Goes thorugh all tickers, looking for low IV, low prices, but historical prices/IV
  * Target a few months OTM
  * Maybe allow the user to adjust their timeframe
  */
@@ -58,7 +59,6 @@
  *    - CLOSER IT IS, HIGHER THE WEIGHTING
  * 
  * DETERMINE IF VOLUME/OPEN INTEREST ARE GOOD ENOUGH
- *    - 
  * 
  * DETERMINE 52-WEEK LOW/HIGH FOR EACH STOCK:
  *    - A HIGHER WEIGHTING FOR THOSE STOCKS WITH LARGE RANGES (LOOK AT PERCENTS)
@@ -97,6 +97,7 @@
 #define NEW_STOCKS 2
 #define APPEND_STOCKS 3
 #define TICK_SIZE 10
+#define MIN_VOL_LENGTH 10
 
 #define FALSE 0
 #define TRUE 1
@@ -124,7 +125,7 @@ struct option
    float beta;
    float gamma;
    float vega;
-   float weight;  // weight for the specigic option
+   float weight; // weight for the specigic option
    float perc_from_strike;
    float perc_from_iv20;
    float perc_from_iv50;
@@ -150,9 +151,9 @@ struct parent_stock
    float avg_close;
    float perc_from_year_high;
    float perc_from_year_low;
-   float weight;        // weight to be given to ever option on stock
-   float calls_weight;  // weight to be given to every call of original stock
-   float puts_weight;   // weight to be given to every put of original stock
+   float weight;       // weight to be given to ever option on stock
+   float calls_weight; // weight to be given to every call of original stock
+   float puts_weight;  // weight to be given to every put of original stock
 };
 
 struct historical_price
@@ -167,8 +168,11 @@ struct historical_price
 };
 
 void print_data(struct parent_stock **parent_array, int parent_array_size, float max_option_price, float min_weight);
+void find_min_vol(struct option **largest_volumes, int *min_vol, int *min_vol_index);
+void print_large_volumes(struct parent_stock **parent_array, int parent_array_size);
+void free_parent_array(struct parent_stock **parent_array, int parent_array_size);
 int callback(void *NotUsed, int argc, char **argv, char **azColName);
-char **parse_args(int argc, char *argv[], int *mode, int *tl_size);
-void free_all(char **tick_list, int *tl_size);
+char **parse_args(int argc, char *argv[], int *mode, int *ta_size);
+void free_tick_array(char **tick_array, int ta_size);
 
 #endif
