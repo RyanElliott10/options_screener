@@ -14,7 +14,7 @@ void gather_options_data(void);                                                 
 
 // sepcific option functionality
 void calc_basic_data(struct parent_stock **parent_array, int parent_array_size, float max_option_price, float min_weight); // done
-void one_std_deviation(struct option *opt);                                                                                // done
+void one_std_deviation(struct option *opt);                                                                                // weight - in progress
 void perc_from_strike(struct option *opt);                                                                                 // done
 int bid_ask_spread(struct option *opt);                                                                                    // done
 void perc_from_ivs(struct option *opt);                                                                                    // done

@@ -119,7 +119,7 @@ void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_ar
 	char removed;
 	unsigned short dte;
 	unsigned int outter_i, inner_i, volume, open_interest;
-	float min_vol;
+	float bid, ask, min_vol;
 
 	for (outter_i = 0; outter_i < parent_array_size; outter_i++)
 	{
@@ -132,11 +132,13 @@ void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_ar
 		for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++)
 		{
 			removed = FALSE;
+			bid = parent_array[outter_i]->calls[inner_i]->bid;
+			ask = parent_array[outter_i]->calls[inner_i]->ask;
 			volume = parent_array[outter_i]->calls[inner_i]->volume;
 			open_interest = parent_array[outter_i]->calls[inner_i]->open_interest;
 			dte = parent_array[outter_i]->calls[inner_i]->days_til_expiration;
 
-			if (volume < 10 || open_interest < 100)
+			if (volume < 10 || open_interest < 100 || bid < 3 || ask < 2)
 				removed = TRUE;
 			if (!removed && dte < 30)
 			{

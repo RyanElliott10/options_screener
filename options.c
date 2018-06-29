@@ -114,7 +114,7 @@ void perc_from_ivs(struct option *opt)
 void one_std_deviation(struct option *opt)
 {
 	double iv, dte_sqrt;
-	float range[2], strike, curr_price;
+	float diff, strike, perc, curr_price, range[2];
 
 	if (opt->days_til_expiration <= 30)
 		iv = opt->iv20;
@@ -132,14 +132,17 @@ void one_std_deviation(struct option *opt)
 	curr_price = opt->parent->curr_price;
 	strike = opt->strike;
 
-	// it it's a call
-	// if (opt->type == 1)
-	// {
-	// 	if (curr_price )
-	// }
-	// else  // put
-	// {
-	// }
+	if (curr_price > range[0] && curr_price < range[1])
+	{
+		// if curr = 90, range[0] = 70 range[1] = 110, strike = 74
+		// strike - range[0] = 4
+		// range = 20
+		// diff / range = percent
+
+		diff = strike - range[0];
+		perc = diff / opt->one_std_deviation;
+		opt->weight += (perc * 100);
+	}
 
 	return;
 }

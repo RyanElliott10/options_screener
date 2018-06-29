@@ -1,3 +1,4 @@
+#include <time.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -68,15 +69,16 @@ int main(int argc, char *argv[])
 		// perhaps even implement more abstraction such that you will have one class that just collects data from the database, and then one class that
 		// just calculates data from those data points and determines the weights
 
-		// printing all data
-
 		// printing largest volumes of the day
-
 		// print_large_volumes(parent_array, parent_array_size);
 
+		// printing all data
 		while (TRUE)
 		{
-			printf("Maximum option price: ");
+			fd = STDOUT_FILENO;
+			find_averages(parent_array, parent_array_size);
+
+			printf("\nMaximum option price: ");
 			fgets(max_price, 10, stdin);
 			if (strstr(max_price, "q") || strstr(max_price, "Q"))
 				break;
@@ -86,11 +88,11 @@ int main(int argc, char *argv[])
 			if (strstr(min_weight, "q") || strstr(min_weight, "Q"))
 				break;
 
-			fd = STDOUT_FILENO;
-			print_data(parent_array, parent_array_size, atof(max_price), atof(min_weight));
+			print_data(parent_array, parent_array_size, atof(max_price), atof(min_weight), STDOUT_FILENO);
 
 			printf("Write to text file (Y filename)? ");
 			fgets(write_to_file, 100, stdin);
+			system("clear");
 			if (strstr(write_to_file, "q") || strstr(write_to_file, "Q"))
 				break;
 
@@ -98,12 +100,12 @@ int main(int argc, char *argv[])
 			if (strstr(write_to_file, "y") || strstr(write_to_file, "Y"))
 			{
 				newname = strstr(write_to_file, " ") + 1;
-				fd = open(newname, O_CREAT | O_WRONLY, 0666);
+				fd = open(newname, O_CREAT | O_WRONLY | O_TRUNC, 0666);
 
 				saved_stdout = dup(STDOUT_FILENO);
 				dup2(fd, STDOUT_FILENO);
 
-				print_data(parent_array, parent_array_size, atof(max_price), atof(min_weight));
+				print_data(parent_array, parent_array_size, atof(max_price), atof(min_weight), fd);
 				dup2(saved_stdout, STDOUT_FILENO);
 			}
 		}
@@ -130,7 +132,7 @@ char **parse_args(int argc, char *argv[], int *mode, int *ta_size)
 		switch (argv[1][1]) // determine which flag they inputted
 		{
 		case 'o': // if they want to only use input stocks
-					 // fall-through
+			 // fall-through
 			*mode = NEW_STOCKS;
 		case 'a': // if they want to append stocks
 			if (*mode != NEW_STOCKS)
@@ -155,13 +157,16 @@ char **parse_args(int argc, char *argv[], int *mode, int *ta_size)
 	return NULL;
 }
 
-void print_data(struct parent_stock **parent_array, int parent_array_size, float max_option_price, float min_weight)
+void print_data(struct parent_stock **parent_array, int parent_array_size, float max_option_price, float min_weight, int fd)
 {
 	int printed, outter_i, inner_i;
 	float weight;
+	time_t t = time(NULL);
+	struct tm tm = *localtime(&t);
 
-	printf("\n\n%s\t%7s\t\t%s\t\t%4s\t  %s\t     %s\t    %s\n", "TYPE", "S PRICE", "STRIKE", "DTE", "   BID", "ASK", "WEIGHT");
-	printf("--------------------------------------------------------------------------------------------\n");
+	dprintf(fd, "\nDate Generated: %d-%d-%d\n", tm.tm_mon + 1, tm.tm_mday, tm.tm_year + 1900);
+	dprintf(fd, "\n\t%s\t%s\t%s\t\t%4s\t  %s\t     %s\t    %s\n", "TYPE", "STOCK PRICE", "STRIKE", "DTE", "   BID", "ASK", "WEIGHT");
+	dprintf(fd, "--------------------------------------------------------------------------------------------\n");
 
 	for (outter_i = 0; outter_i < parent_array_size; outter_i++)
 	{
@@ -178,12 +183,12 @@ void print_data(struct parent_stock **parent_array, int parent_array_size, float
 				if (weight > min_weight && parent_array[outter_i]->calls[inner_i]->bid < max_option_price)
 				{
 					if (printed == FALSE)
-						printf("\n%s\n", parent_array[outter_i]->ticker);
-					
+						dprintf(fd, "\n%s", parent_array[outter_i]->ticker);
+
 					printed = TRUE;
-					printf("Call\t%7f\t%f\t%4d\t%4f\t%4f\t%f\n", parent_array[outter_i]->curr_price,
-							 parent_array[outter_i]->calls[inner_i]->strike, parent_array[outter_i]->calls[inner_i]->days_til_expiration,
-							 parent_array[outter_i]->calls[inner_i]->bid, parent_array[outter_i]->calls[inner_i]->ask, weight);
+					dprintf(fd, "\tCall\t%7f\t%f\t%4d\t%4f\t%4f\t%f\n", parent_array[outter_i]->curr_price,
+							  parent_array[outter_i]->calls[inner_i]->strike, parent_array[outter_i]->calls[inner_i]->days_til_expiration,
+							  parent_array[outter_i]->calls[inner_i]->bid, parent_array[outter_i]->calls[inner_i]->ask, weight);
 				}
 			}
 		}
@@ -199,12 +204,12 @@ void print_data(struct parent_stock **parent_array, int parent_array_size, float
 				if (weight > min_weight && parent_array[outter_i]->puts[inner_i]->bid < max_option_price)
 				{
 					if (printed == FALSE)
-						printf("\n%s\n", parent_array[outter_i]->ticker);
-					
+						dprintf(fd, "\n%s", parent_array[outter_i]->ticker);
+
 					printed = TRUE;
-					printf("Call\t%7f\t%f\t%4d\t%4f\t%4f\t%f\n", parent_array[outter_i]->curr_price,
-							 parent_array[outter_i]->puts[inner_i]->strike, parent_array[outter_i]->puts[inner_i]->days_til_expiration,
-							 parent_array[outter_i]->puts[inner_i]->bid, parent_array[outter_i]->puts[inner_i]->ask, weight);
+					dprintf(fd, "\tPut\t%7f\t%f\t%4d\t%4f\t%4f\t%f\n", parent_array[outter_i]->curr_price,
+							  parent_array[outter_i]->puts[inner_i]->strike, parent_array[outter_i]->puts[inner_i]->days_til_expiration,
+							  parent_array[outter_i]->puts[inner_i]->bid, parent_array[outter_i]->puts[inner_i]->ask, weight);
 				}
 			}
 		}
@@ -325,4 +330,56 @@ void find_min_vol(struct option **largest_volumes, int *min_vol, int *min_vol_in
 	}
 
 	return;
+}
+
+/* idea: have it print the average weight, lows, highs, and one std */
+void find_averages(struct parent_stock **parent_array, int parent_array_size)
+{
+	int count, outter_i, inner_i;
+	float weights, low, high;
+
+	weights = 0;
+	count = 0;
+	high = 0;
+	low = INT32_MAX;
+
+	for (outter_i = 0; outter_i < parent_array_size; outter_i++)
+	{
+		for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++)
+		{
+			if (parent_array[outter_i]->calls[inner_i] != NULL)
+			{
+				if (parent_array[outter_i]->calls[inner_i]->weight > 5000 || parent_array[outter_i]->calls[inner_i]->weight < -5000 || parent_array[outter_i]->calls[inner_i]->weight)
+					continue;
+
+				count++;
+				weights += parent_array[outter_i]->calls[inner_i]->weight;
+
+				if (parent_array[outter_i]->calls[inner_i]->weight > high)
+					high = parent_array[outter_i]->calls[inner_i]->weight;
+				if (parent_array[outter_i]->calls[inner_i]->weight < low)
+					low = parent_array[outter_i]->calls[inner_i]->weight;
+			}
+		}
+
+		for (inner_i = 0; inner_i < parent_array[outter_i]->puts_size; inner_i++)
+		{
+			if (parent_array[outter_i]->puts[inner_i] != NULL)
+			{
+				if (parent_array[outter_i]->puts[inner_i]->weight > 5000 || parent_array[outter_i]->puts[inner_i]->weight < -5000)
+					continue;
+
+				count++;
+				weights += parent_array[outter_i]->puts[inner_i]->weight;
+
+				if (parent_array[outter_i]->puts[inner_i]->weight > high)
+					high = parent_array[outter_i]->puts[inner_i]->weight;
+				if (parent_array[outter_i]->puts[inner_i]->weight < low)
+					low = parent_array[outter_i]->puts[inner_i]->weight;
+			}
+		}
+	}
+
+	printf("WEIGHT INFORMATION\n");
+	printf("Mean Weight: %f\tLow: %f\tHigh: %f\n", (weights / count), low, high);
 }

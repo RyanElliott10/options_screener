@@ -167,10 +167,11 @@ struct historical_price
    long volume;
 };
 
-void print_data(struct parent_stock **parent_array, int parent_array_size, float max_option_price, float min_weight);
+void print_data(struct parent_stock **parent_array, int parent_array_size, float max_option_price, float min_weight, int fd);
 void find_min_vol(struct option **largest_volumes, int *min_vol, int *min_vol_index);
 void print_large_volumes(struct parent_stock **parent_array, int parent_array_size);
 void free_parent_array(struct parent_stock **parent_array, int parent_array_size);
+void find_averages(struct parent_stock **parent_array, int parent_array_size);
 int callback(void *NotUsed, int argc, char **argv, char **azColName);
 char **parse_args(int argc, char *argv[], int *mode, int *ta_size);
 void free_tick_array(char **tick_array, int ta_size);
