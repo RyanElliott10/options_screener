@@ -138,7 +138,7 @@ struct parent_stock
    struct option **calls;                  // list of all calls associated with stock
    struct option **puts;                   // list of all puts associated with stock
    struct historical_price **prices_array; // list of all prices
-   long price_array_size;
+   long prices_array_size;
    int calls_size;
    int num_open_calls;
    int puts_size;

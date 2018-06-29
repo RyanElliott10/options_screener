@@ -41,6 +41,9 @@ void calc_basic_data(struct parent_stock **parent_array, int parent_array_size, 
 
 	for (outter_i = 0; outter_i < parent_array_size; outter_i++)
 	{
+		price_trend(parent_array[outter_i]);
+		average_perc_change(parent_array[outter_i]);
+
 		for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++)
 		{
 			if (parent_array[outter_i]->calls[inner_i] != NULL)
@@ -49,6 +52,7 @@ void calc_basic_data(struct parent_stock **parent_array, int parent_array_size, 
 				perc_from_ivs(parent_array[outter_i]->calls[inner_i]);
 				one_std_deviation(parent_array[outter_i]->calls[inner_i]);
 				iv_below(parent_array[outter_i]->calls[inner_i]);
+				dte_weight(parent_array[outter_i]->calls[inner_i]);
 			}
 		}
 
@@ -60,6 +64,7 @@ void calc_basic_data(struct parent_stock **parent_array, int parent_array_size, 
 				perc_from_ivs(parent_array[outter_i]->puts[inner_i]);
 				one_std_deviation(parent_array[outter_i]->puts[inner_i]);
 				iv_below(parent_array[outter_i]->puts[inner_i]);
+				dte_weight(parent_array[outter_i]->puts[inner_i]);
 			}
 		}
 	}
@@ -76,9 +81,14 @@ void perc_from_strike(struct option *opt)
 	stock_curr_price = opt->parent->curr_price;
 
 	dif = opt_strike - stock_curr_price;
-	opt->perc_from_strike = dif / stock_curr_price;
+	opt->perc_from_strike = dif / stock_curr_price * 100;
 
-	opt->weight += 100 - (opt->perc_from_strike * 100);
+	if (opt->perc_from_strike <= .05)
+		opt->weight += 150 - opt->perc_from_strike;
+	else if (opt->perc_from_strike <= .1)
+		opt->weight += 75 - opt->perc_from_strike;
+	else if (opt->perc_from_strike <= .175)
+		opt->weight += 50 - opt->perc_from_strike;
 
 	return;
 }
@@ -154,6 +164,15 @@ void iv_below(struct option *opt)
 	opt->weight += (dif * 100);
 
 	return;
+}
+
+/* Gives slightly more weight to contracts with more DTE */
+void dte_weight(struct option *opt)
+{
+	if (opt->days_til_expiration > 100)
+		opt->weight += 100;
+	else
+		opt->weight += opt->days_til_expiration;
 }
 
 int options_callback(void *NotUsed, int argc, char **argv, char **azColName)

@@ -225,7 +225,7 @@ struct parent_stock **gather_tickers(long *pa_size)
 {
 	int i;
 	char previous[TICK_SIZE];
-	long price_array_size, parent_array_size;
+	long prices_array_size, parent_array_size;
 	struct parent_stock **parent_array; // list of all stock tickers containing lists of their historical prices
 
 	parent_array_size = 0;
@@ -254,20 +254,20 @@ struct parent_stock **gather_tickers(long *pa_size)
 			parent_array[parent_array_size - 1]->calls_weight = 0;
 			parent_array[parent_array_size - 1]->puts_weight = 0;
 
-			price_array_size = 0;
+			prices_array_size = 0;
 		}
 
-		parent_array[parent_array_size - 1]->prices_array = safe_realloc(parent_array[parent_array_size - 1]->prices_array, ++price_array_size * (sizeof(struct historical_price *)));
-		parent_array[parent_array_size - 1]->prices_array[price_array_size - 1] = safe_malloc(sizeof(struct historical_price));
-		parent_array[parent_array_size - 1]->price_array_size = price_array_size;
+		parent_array[parent_array_size - 1]->prices_array = safe_realloc(parent_array[parent_array_size - 1]->prices_array, ++prices_array_size * (sizeof(struct historical_price *)));
+		parent_array[parent_array_size - 1]->prices_array[prices_array_size - 1] = safe_malloc(sizeof(struct historical_price));
+		parent_array[parent_array_size - 1]->prices_array_size = prices_array_size;
 
-		strcpy(parent_array[parent_array_size - 1]->prices_array[price_array_size - 1]->ticker, historical_price_array[i]->ticker);
-		parent_array[parent_array_size - 1]->prices_array[price_array_size - 1]->date = historical_price_array[i]->date;
-		parent_array[parent_array_size - 1]->prices_array[price_array_size - 1]->open = historical_price_array[i]->open;
-		parent_array[parent_array_size - 1]->prices_array[price_array_size - 1]->low = historical_price_array[i]->low;
-		parent_array[parent_array_size - 1]->prices_array[price_array_size - 1]->high = historical_price_array[i]->high;
-		parent_array[parent_array_size - 1]->prices_array[price_array_size - 1]->close = historical_price_array[i]->close;
-		parent_array[parent_array_size - 1]->prices_array[price_array_size - 1]->volume = historical_price_array[i]->volume;
+		strcpy(parent_array[parent_array_size - 1]->prices_array[prices_array_size - 1]->ticker, historical_price_array[i]->ticker);
+		parent_array[parent_array_size - 1]->prices_array[prices_array_size - 1]->date = historical_price_array[i]->date;
+		parent_array[parent_array_size - 1]->prices_array[prices_array_size - 1]->open = historical_price_array[i]->open;
+		parent_array[parent_array_size - 1]->prices_array[prices_array_size - 1]->low = historical_price_array[i]->low;
+		parent_array[parent_array_size - 1]->prices_array[prices_array_size - 1]->high = historical_price_array[i]->high;
+		parent_array[parent_array_size - 1]->prices_array[prices_array_size - 1]->close = historical_price_array[i]->close;
+		parent_array[parent_array_size - 1]->prices_array[prices_array_size - 1]->volume = historical_price_array[i]->volume;
 
 		// to free up memory since this is memory intensive
 		free(historical_price_array[i]);
@@ -281,7 +281,7 @@ struct parent_stock **gather_tickers(long *pa_size)
 
 void find_curr_stock_price(struct parent_stock *stock)
 {
-	int size = stock->price_array_size - 1;
+	int size = stock->prices_array_size - 1;
 
 	stock->curr_price = stock->prices_array[size]->close;
 
@@ -310,11 +310,11 @@ void large_price_drop(struct parent_stock *stock)
 	int i, starting_index;
 	float change, previous;
 
-	starting_index = (stock->price_array_size <= 100 ? 0 : stock->price_array_size - 30);
+	starting_index = (stock->prices_array_size <= 100 ? 0 : stock->prices_array_size - 30);
 
 	previous = 0;
 
-	for (i = starting_index; i < stock->price_array_size; i++)
+	for (i = starting_index; i < stock->prices_array_size; i++)
 	{
 		if (i == 0 || i == starting_index)
 		{
@@ -348,7 +348,7 @@ void perc_from_high_low(struct parent_stock *stock)
 	low = INT64_MAX;
 	high = 0;
 
-	for (i = 0; i < stock->price_array_size; i++)
+	for (i = 0; i < stock->prices_array_size; i++)
 	{
 		if (stock->prices_array[i]->close < low)
 			low = stock->prices_array[i]->close;
@@ -376,10 +376,77 @@ void perc_from_high_low(struct parent_stock *stock)
 	return;
 }
 
+/*
+ * General algorithm:
+ * Everything will be weighted as we go, so there will be a positive and a negative weight.
+ * It will be adjusted as we go, so I'll use a consecutive_days variable to determine how
+ * many days in a row the same price trend has been going. It might also be smart to create
+ * a more generalized version because there will likely be dips even when it is generally a
+ * strong uptrend pattern.
+ */
 void price_trend(struct parent_stock *stock)
 {
+	int i, positive, prev_positive, consecutive_days;
+	float diff, previous, current, perc_change;
+	float neg_weight = 0, pos_weight = 0;
+
+	positive = FALSE;
+
+	for (i = 0; i < stock->prices_array_size; i++)
+	{
+		current = stock->prices_array[i]->close;
+		if (i == 0)
+		{
+			previous = current;
+			continue;
+		}
+
+		diff = current - previous;
+		positive = (diff > 0 ? TRUE : FALSE);
+
+		perc_change = fabsf(diff) / previous;
+		consecutive_days = (prev_positive == positive ? ++consecutive_days : 0);  // if trend is broke, consecutive_days is reset
+
+		if (positive)
+			pos_weight += perc_change * consecutive_days / 5;
+		else 
+			neg_weight += perc_change * consecutive_days / 5;
+
+		prev_positive = positive;
+	}
+
+	stock->calls_weight += pos_weight / 7.5;
+	stock->puts_weight += neg_weight / 7.5;
 
 	return;
+}
+
+void average_perc_change(struct parent_stock *stock)
+{
+	int i;
+	float diff, change, current, previous, total_changes;
+
+	total_changes = 0;
+
+	for (i = 0; i < stock->prices_array_size; i++)
+	{
+		current = stock->prices_array[i]->close;
+
+		if (i == 0)
+		{
+			previous = current;
+			continue;
+		}
+
+		diff = fabsf(current - previous);
+		change = diff / previous * 100;
+		total_changes += change;
+
+		previous = current;
+	}
+
+	change = total_changes / stock->prices_array_size;
+	stock->weight += (change * 50);
 }
 
 void avg_stock_close(struct parent_stock *stock)
@@ -389,7 +456,7 @@ void avg_stock_close(struct parent_stock *stock)
 
 	total = 0;
 
-	for (i = 0; i < stock->price_array_size; i++)
+	for (i = 0; i < stock->prices_array_size; i++)
 		total += stock->prices_array[i]->close;
 
 	stock->avg_close = total / i;

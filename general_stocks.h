@@ -16,9 +16,10 @@ struct parent_stock **gather_tickers(long *pa_size);                            
 void gather_data(void);                                                                // done
 
 // historical price functionality
-void perc_from_high_low(struct parent_stock *stock); // done
-void large_price_drop(struct parent_stock *stock);   // done
-void price_trend(struct parent_stock *stock);
+void average_perc_change(struct parent_stock *stock); // done
+void perc_from_high_low(struct parent_stock *stock);  // done
+void large_price_drop(struct parent_stock *stock);    // done
+void price_trend(struct parent_stock *stock);         // done
 
 void find_curr_stock_price(struct parent_stock *stock); // done
 void avg_stock_close(struct parent_stock *stock);       // done

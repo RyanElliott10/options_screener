@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
 
 		while (TRUE)
 		{
-			printf("Maximum option price ('q' to quit): ");
+			printf("Maximum option price: ");
 			fgets(max_price, 10, stdin);
 			if (strstr(max_price, "q") || strstr(max_price, "Q"))
 				break;
@@ -91,7 +91,10 @@ int main(int argc, char *argv[])
 
 			printf("Write to text file (Y filename)? ");
 			fgets(write_to_file, 100, stdin);
+			if (strstr(write_to_file, "q") || strstr(write_to_file, "Q"))
+				break;
 
+			// if they would like to write the data to a file
 			if (strstr(write_to_file, "y") || strstr(write_to_file, "Y"))
 			{
 				newname = strstr(write_to_file, " ") + 1;
@@ -157,8 +160,8 @@ void print_data(struct parent_stock **parent_array, int parent_array_size, float
 	int printed, outter_i, inner_i;
 	float weight;
 
-	printf("TYPE\t  TICK\t  STRIKE\t DTE\t  BID\t  ASK\tWEIGHT\n");
-	printf("----------------------------------------------------------------------------------\n");
+	printf("\n\n%s\t%7s\t\t%s\t\t%4s\t  %s\t     %s\t    %s\n", "TYPE", "S PRICE", "STRIKE", "DTE", "   BID", "ASK", "WEIGHT");
+	printf("--------------------------------------------------------------------------------------------\n");
 
 	for (outter_i = 0; outter_i < parent_array_size; outter_i++)
 	{
@@ -174,9 +177,13 @@ void print_data(struct parent_stock **parent_array, int parent_array_size, float
 
 				if (weight > min_weight && parent_array[outter_i]->calls[inner_i]->bid < max_option_price)
 				{
-					printf("Call\t%6s\t%8f\t%4d\t%5f\t%5f\t%f\n", parent_array[outter_i]->calls[inner_i]->ticker,
+					if (printed == FALSE)
+						printf("\n%s\n", parent_array[outter_i]->ticker);
+					
+					printed = TRUE;
+					printf("Call\t%7f\t%f\t%4d\t%4f\t%4f\t%f\n", parent_array[outter_i]->curr_price,
 							 parent_array[outter_i]->calls[inner_i]->strike, parent_array[outter_i]->calls[inner_i]->days_til_expiration,
-							 parent_array[outter_i]->calls[inner_i]->bid, parent_array[outter_i]->calls[inner_i]->ask, parent_array[outter_i]->calls[inner_i]->weight);
+							 parent_array[outter_i]->calls[inner_i]->bid, parent_array[outter_i]->calls[inner_i]->ask, weight);
 				}
 			}
 		}
@@ -191,15 +198,16 @@ void print_data(struct parent_stock **parent_array, int parent_array_size, float
 
 				if (weight > min_weight && parent_array[outter_i]->puts[inner_i]->bid < max_option_price)
 				{
-					printf("Put \t%6s\t%8f\t%4d\t%5f\t%5f\t%f\n", parent_array[outter_i]->puts[inner_i]->ticker,
+					if (printed == FALSE)
+						printf("\n%s\n", parent_array[outter_i]->ticker);
+					
+					printed = TRUE;
+					printf("Call\t%7f\t%f\t%4d\t%4f\t%4f\t%f\n", parent_array[outter_i]->curr_price,
 							 parent_array[outter_i]->puts[inner_i]->strike, parent_array[outter_i]->puts[inner_i]->days_til_expiration,
-							 parent_array[outter_i]->puts[inner_i]->bid, parent_array[outter_i]->puts[inner_i]->ask, parent_array[outter_i]->puts[inner_i]->weight);
+							 parent_array[outter_i]->puts[inner_i]->bid, parent_array[outter_i]->puts[inner_i]->ask, weight);
 				}
 			}
 		}
-
-		if (printed == TRUE)
-			printf("\n");
 	}
 
 	return;
