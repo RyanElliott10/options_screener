@@ -13,8 +13,7 @@
 #include "options.h"
 #include "safe.h"
 
-void gather_options(struct parent_stock **parent_array, long parent_array_size)
-{
+void gather_options(struct parent_stock **parent_array, long parent_array_size) {
 	int i, parent_array_index;
 	char previous[TICK_SIZE];
 
@@ -24,15 +23,13 @@ void gather_options(struct parent_stock **parent_array, long parent_array_size)
 	gather_options_data();
 
 	// iterate through all_options array
-	for (i = 0; i < all_options_size; i++)
-	{
+	for (i = 0; i < all_options_size; i++) {
 		// if it is a brand new ticker
 		if (parent_array_index >= parent_array_size)
 			printf("Something went wrong...\n");
 
 		// if the current and previous ticker are different, means change in ticker
-		if (0 != strcmp(all_options[i]->ticker, previous))
-		{
+		if (0 != strcmp(all_options[i]->ticker, previous)) {
 			// to avoid skipping the first index
 			if (i != 0)
 				parent_array_index++;
@@ -48,8 +45,7 @@ void gather_options(struct parent_stock **parent_array, long parent_array_size)
 		}
 
 		// if the option is a call
-		if (all_options[i]->type == 1)
-		{
+		if (all_options[i]->type == 1) {
 			parent_array[parent_array_index]->calls = safe_realloc(parent_array[parent_array_index]->calls,
 																					 ++(parent_array[parent_array_index]->calls_size) * sizeof(struct option *));
 
@@ -57,8 +53,7 @@ void gather_options(struct parent_stock **parent_array, long parent_array_size)
 			parent_array[parent_array_index]->calls[parent_array[parent_array_index]->calls_size - 1]->parent = parent_array[parent_array_index];
 			copy_option(parent_array[parent_array_index]->calls[parent_array[parent_array_index]->calls_size - 1], all_options[i]);
 		}
-		else if (all_options[i]->type == 0)
-		{
+		else if (all_options[i]->type == 0) {
 			parent_array[parent_array_index]->puts = safe_realloc(parent_array[parent_array_index]->puts,
 																					++(parent_array[parent_array_index]->puts_size) * sizeof(struct option *));
 
@@ -74,8 +69,7 @@ void gather_options(struct parent_stock **parent_array, long parent_array_size)
 }
 
 /* Gathers all options data from database */
-void gather_options_data(void)
-{
+void gather_options_data(void) {
 	int rc;
 	char *error_msg;
 	sqlite3 *db;
@@ -86,8 +80,7 @@ void gather_options_data(void)
 	all_options_size = 0;
 	all_options = malloc(sizeof(struct option *));
 
-	if (rc != SQLITE_OK)
-	{
+	if (rc != SQLITE_OK) {
 		fprintf(stderr, "Failed to fetch data: %s\n", sqlite3_errmsg(db));
 		sqlite3_close(db);
 
@@ -105,8 +98,7 @@ void gather_options_data(void)
  * Effectively removes options from the list if the volume/open interest isn't up to standards
  * Also screens for bid x ask spread
  */
-void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_array_size)
-{
+void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_array_size) {
 	/*
     * ALGORITHM/REQUIREMENTS:
     * 
@@ -121,16 +113,14 @@ void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_ar
 	unsigned int outter_i, inner_i, volume, open_interest;
 	float bid, ask, min_vol;
 
-	for (outter_i = 0; outter_i < parent_array_size; outter_i++)
-	{
+	for (outter_i = 0; outter_i < parent_array_size; outter_i++) {
 		parent_array[outter_i]->num_open_calls = parent_array[outter_i]->calls_size;
 		parent_array[outter_i]->num_open_puts = parent_array[outter_i]->puts_size;
 		large_price_drop(parent_array[outter_i]);
 		avg_stock_close(parent_array[outter_i]);
 		perc_from_high_low(parent_array[outter_i]);
 
-		for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++)
-		{
+		for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++) {
 			removed = FALSE;
 			bid = parent_array[outter_i]->calls[inner_i]->bid;
 			ask = parent_array[outter_i]->calls[inner_i]->ask;
@@ -140,8 +130,7 @@ void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_ar
 
 			if (volume < 10 || open_interest < 100 || bid < 3 || ask < 2)
 				removed = TRUE;
-			if (!removed && dte < 30)
-			{
+			if (!removed && dte < 30) {
 				// honestly, this is a random equation. It basically says the closer to the dte,
 				// the larger the volume must be, so if dte = 2, volume must be at least 2000
 				if (dte <= 1)
@@ -155,15 +144,13 @@ void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_ar
 			if (!removed && bid_ask_spread(parent_array[outter_i]->calls[inner_i]))
 				removed = TRUE;
 
-			if (removed)
-			{
+			if (removed) {
 				parent_array[outter_i]->calls[inner_i] = NULL;
 				parent_array[outter_i]->num_open_calls--;
 			}
 		}
 
-		for (inner_i = 0; inner_i < parent_array[outter_i]->puts_size; inner_i++)
-		{
+		for (inner_i = 0; inner_i < parent_array[outter_i]->puts_size; inner_i++) {
 			removed = FALSE;
 			volume = parent_array[outter_i]->puts[inner_i]->volume;
 			open_interest = parent_array[outter_i]->puts[inner_i]->open_interest;
@@ -171,8 +158,7 @@ void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_ar
 
 			if (volume < 10 || open_interest < 100)
 				removed = TRUE;
-			if (!removed && dte < 30)
-			{
+			if (!removed && dte < 30) {
 				// honestly, this is a random equation. It basically says the closer to the dte,
 				// the larger the volume must be, so if dte = 2, volume must be at least 2000
 				if (dte <= 1)
@@ -183,6 +169,8 @@ void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_ar
 				if (volume < min_vol)
 					removed = TRUE;
 			}
+			if (!removed && bid_ask_spread(parent_array[outter_i]->puts[inner_i]))
+				removed = TRUE;
 
 			if (removed)
 			{
@@ -196,8 +184,7 @@ void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_ar
 }
 
 /* Gathers all historical pricing data from database */
-void gather_data(void)
-{
+void gather_data(void) {
 	int rc;
 	char *error_msg;
 	sqlite3 *db;
@@ -208,8 +195,7 @@ void gather_data(void)
 
 	rc = sqlite3_open("historicalPrices", &db);
 
-	if (rc != SQLITE_OK)
-	{
+	if (rc != SQLITE_OK) {
 		fprintf(stderr, "Failed to fetch data: %s\n", sqlite3_errmsg(db));
 		sqlite3_close(db);
 
@@ -223,8 +209,7 @@ void gather_data(void)
 	return;
 }
 
-struct parent_stock **gather_tickers(long *pa_size)
-{
+struct parent_stock **gather_tickers(long *pa_size) {
 	int i;
 	char previous[TICK_SIZE];
 	long prices_array_size, parent_array_size;
@@ -236,10 +221,8 @@ struct parent_stock **gather_tickers(long *pa_size)
 
 	gather_data();
 
-	for (i = 0; i < historical_array_size; i++)
-	{
-		if (0 != strcmp(historical_price_array[i]->ticker, previous))
-		{
+	for (i = 0; i < historical_array_size; i++) {
+		if (0 != strcmp(historical_price_array[i]->ticker, previous)) {
 			if (i != 0)
 				find_curr_stock_price(parent_array[parent_array_size - 1]);
 
@@ -281,8 +264,7 @@ struct parent_stock **gather_tickers(long *pa_size)
 	return parent_array;
 }
 
-void find_curr_stock_price(struct parent_stock *stock)
-{
+void find_curr_stock_price(struct parent_stock *stock) {
 	int size = stock->prices_array_size - 1;
 
 	stock->curr_price = stock->prices_array[size]->close;
@@ -290,8 +272,7 @@ void find_curr_stock_price(struct parent_stock *stock)
 	return;
 }
 
-int historical_price_callback(void *NotUsed, int argc, char **argv, char **azColName)
-{
+int historical_price_callback(void *NotUsed, int argc, char **argv, char **azColName) {
 	historical_price_array = realloc(historical_price_array, ++historical_array_size * (sizeof(struct historical_price *)));
 	historical_price_array[historical_array_size - 1] = malloc(sizeof(struct historical_price));
 
@@ -307,8 +288,7 @@ int historical_price_callback(void *NotUsed, int argc, char **argv, char **azCol
 	return 0;
 }
 
-void large_price_drop(struct parent_stock *stock)
-{
+void large_price_drop(struct parent_stock *stock) {
 	int i, starting_index;
 	float change, previous;
 
@@ -316,10 +296,8 @@ void large_price_drop(struct parent_stock *stock)
 
 	previous = 0;
 
-	for (i = starting_index; i < stock->prices_array_size; i++)
-	{
-		if (i == 0 || i == starting_index)
-		{
+	for (i = starting_index; i < stock->prices_array_size; i++) {
+		if (i == 0 || i == starting_index) {
 			previous = stock->prices_array[i]->close;
 			continue;
 		}
@@ -342,16 +320,14 @@ void large_price_drop(struct parent_stock *stock)
 	return;
 }
 
-void perc_from_high_low(struct parent_stock *stock)
-{
+void perc_from_high_low(struct parent_stock *stock) {
 	int i;
 	float dif, low, high, weight;
 
 	low = INT64_MAX;
 	high = 0;
 
-	for (i = 0; i < stock->prices_array_size; i++)
-	{
+	for (i = 0; i < stock->prices_array_size; i++) {
 		if (stock->prices_array[i]->close < low)
 			low = stock->prices_array[i]->close;
 		else if (stock->prices_array[i]->close > high)
@@ -386,32 +362,30 @@ void perc_from_high_low(struct parent_stock *stock)
  * a more generalized version because there will likely be dips even when it is generally a
  * strong uptrend pattern.
  */
-void price_trend(struct parent_stock *stock)
-{
+void price_trend(struct parent_stock *stock) {
 	int i, positive, prev_positive, consecutive_days;
-	float diff, previous, current, perc_change;
+	float dif, previous, current, perc_change;
 	float neg_weight = 0, pos_weight = 0;
 
 	positive = FALSE;
 
-	for (i = 0; i < stock->prices_array_size; i++)
-	{
+	for (i = 0; i < stock->prices_array_size; i++) {
 		current = stock->prices_array[i]->close;
-		if (i == 0)
-		{
+
+		if (i == 0) {
 			previous = current;
 			continue;
 		}
 
-		diff = current - previous;
-		positive = (diff > 0 ? TRUE : FALSE);
+		dif = current - previous;
+		positive = (dif > 0 ? TRUE : FALSE);
 
-		perc_change = fabsf(diff) / previous;
-		consecutive_days = (prev_positive == positive ? ++consecutive_days : 0);  // if trend is broke, consecutive_days is reset
+		perc_change = fabsf(dif) / previous;
+		consecutive_days = (prev_positive == positive ? ++consecutive_days : 0); // if trend is broke, consecutive_days is reset
 
 		if (positive)
 			pos_weight += perc_change * consecutive_days / 5;
-		else 
+		else
 			neg_weight += perc_change * consecutive_days / 5;
 
 		prev_positive = positive;
@@ -423,36 +397,32 @@ void price_trend(struct parent_stock *stock)
 	return;
 }
 
-void average_perc_change(struct parent_stock *stock)
-{
+void average_perc_change(struct parent_stock *stock) {
 	int i;
-	float diff, change, current, previous, total_changes;
+	float dif, change, current, previous, total_changes;
 
 	total_changes = 0;
 
-	for (i = 0; i < stock->prices_array_size; i++)
-	{
+	for (i = 0; i < stock->prices_array_size; i++) {
 		current = stock->prices_array[i]->close;
 
-		if (i == 0)
-		{
+		if (i == 0) {
 			previous = current;
 			continue;
 		}
 
-		diff = fabsf(current - previous);
-		change = diff / previous * 100;
+		dif = fabsf(current - previous);
+		change = dif / previous * 100;
 		total_changes += change;
 
 		previous = current;
 	}
 
 	change = total_changes / stock->prices_array_size;
-	stock->weight += (change * 50);
+	stock->weight += (change * 100);
 }
 
-void avg_stock_close(struct parent_stock *stock)
-{
+void avg_stock_close(struct parent_stock *stock) {
 	int i;
 	float total;
 

@@ -14,8 +14,7 @@
 #include "safe.h"
 
 /* Returns TRUE if it is beyond MAX_BID_ASK_ERROR */
-int bid_ask_spread(struct option *opt)
-{
+int bid_ask_spread(struct option *opt) {
 	float bid, ask, dif, mean, error;
 
 	bid = opt->bid;
@@ -23,7 +22,7 @@ int bid_ask_spread(struct option *opt)
 
 	mean = (bid + ask) / 2;
 
-	dif = bid - ask;
+	dif = ask - bid;
 	error = dif / mean;
 
 	if (error > MAX_BID_ASK_ERROR)
@@ -35,19 +34,15 @@ int bid_ask_spread(struct option *opt)
 }
 
 /* Calculates all basic data on calls and puts */
-void calc_basic_data(struct parent_stock **parent_array, int parent_array_size, float max_option_price, float min_weight)
-{
+void calc_basic_data(struct parent_stock **parent_array, int parent_array_size, float max_option_price, float min_weight) {
 	int outter_i, inner_i;
 
-	for (outter_i = 0; outter_i < parent_array_size; outter_i++)
-	{
+	for (outter_i = 0; outter_i < parent_array_size; outter_i++) {
 		price_trend(parent_array[outter_i]);
 		average_perc_change(parent_array[outter_i]);
 
-		for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++)
-		{
-			if (parent_array[outter_i]->calls[inner_i] != NULL)
-			{
+		for (inner_i = 0; inner_i < parent_array[outter_i]->calls_size; inner_i++) {
+			if (parent_array[outter_i]->calls[inner_i] != NULL) {
 				perc_from_strike(parent_array[outter_i]->calls[inner_i]);
 				perc_from_ivs(parent_array[outter_i]->calls[inner_i]);
 				one_std_deviation(parent_array[outter_i]->calls[inner_i]);
@@ -56,10 +51,8 @@ void calc_basic_data(struct parent_stock **parent_array, int parent_array_size, 
 			}
 		}
 
-		for (inner_i = 0; inner_i < parent_array[outter_i]->puts_size; inner_i++)
-		{
-			if (parent_array[outter_i]->puts[inner_i] != NULL)
-			{
+		for (inner_i = 0; inner_i < parent_array[outter_i]->puts_size; inner_i++) {
+			if (parent_array[outter_i]->puts[inner_i] != NULL) {
 				perc_from_strike(parent_array[outter_i]->puts[inner_i]);
 				perc_from_ivs(parent_array[outter_i]->puts[inner_i]);
 				one_std_deviation(parent_array[outter_i]->puts[inner_i]);
@@ -73,8 +66,7 @@ void calc_basic_data(struct parent_stock **parent_array, int parent_array_size, 
 }
 
 /* Finds percent from stock's current price */
-void perc_from_strike(struct option *opt)
-{
+void perc_from_strike(struct option *opt) {
 	float dif, opt_strike, stock_curr_price;
 
 	opt_strike = opt->strike;
@@ -84,7 +76,7 @@ void perc_from_strike(struct option *opt)
 	opt->perc_from_strike = dif / stock_curr_price * 100;
 
 	if (opt->perc_from_strike <= .05)
-		opt->weight += 150 - opt->perc_from_strike;
+		opt->weight += 125 - opt->perc_from_strike;
 	else if (opt->perc_from_strike <= .1)
 		opt->weight += 75 - opt->perc_from_strike;
 	else if (opt->perc_from_strike <= .175)
@@ -94,8 +86,7 @@ void perc_from_strike(struct option *opt)
 }
 
 /* Calculates the distance from all of the different IV levels */
-void perc_from_ivs(struct option *opt)
-{
+void perc_from_ivs(struct option *opt) {
 	float dif, opt_hv;
 
 	opt_hv = opt->implied_volatility;
@@ -111,10 +102,9 @@ void perc_from_ivs(struct option *opt)
 }
 
 /* Formula: curr_price x iv x SQRT(dte/365) = 1 std deviation */
-void one_std_deviation(struct option *opt)
-{
+void one_std_deviation(struct option *opt) {
 	double iv, dte_sqrt;
-	float diff, strike, perc, curr_price, range[2];
+	float dif, strike, perc, curr_price, range[2];
 
 	if (opt->days_til_expiration <= 30)
 		iv = opt->iv20;
@@ -132,15 +122,14 @@ void one_std_deviation(struct option *opt)
 	curr_price = opt->parent->curr_price;
 	strike = opt->strike;
 
-	if (curr_price > range[0] && curr_price < range[1])
-	{
+	if (curr_price > range[0] && curr_price < range[1]) {
 		// if curr = 90, range[0] = 70 range[1] = 110, strike = 74
 		// strike - range[0] = 4
 		// range = 20
-		// diff / range = percent
+		// dif / range = percent
 
-		diff = strike - range[0];
-		perc = diff / opt->one_std_deviation;
+		dif = strike - range[0];
+		perc = dif / opt->one_std_deviation;
 		opt->weight += (perc * 100);
 	}
 
@@ -151,35 +140,32 @@ void one_std_deviation(struct option *opt)
  * Formula:
  * weight = (ivx - iv / ivx) * 100
  */
-void iv_below(struct option *opt)
-{
+void iv_below(struct option *opt) {
 	float iv, dif;
 
 	iv = opt->implied_volatility;
 
 	if (opt->days_til_expiration <= 30)
-		dif = (opt->iv20 - iv) / opt->iv20;
+		dif = (opt->iv20 - iv) / opt->iv20 * 100;
 	else if (opt->days_til_expiration <= 365 / 4)
-		dif = (opt->iv50 - iv) / opt->iv50;
+		dif = (opt->iv50 - iv) / opt->iv50 * 100;
 	else
-		dif = (opt->iv100 - iv) / opt->iv100;
+		dif = (opt->iv100 - iv) / opt->iv100 * 100;
 
-	opt->weight += (dif * 100);
+	opt->weight += dif;
 
 	return;
 }
 
 /* Gives slightly more weight to contracts with more DTE */
-void dte_weight(struct option *opt)
-{
+void dte_weight(struct option *opt) {
 	if (opt->days_til_expiration > 100)
 		opt->weight += 100;
 	else
 		opt->weight += opt->days_til_expiration;
 }
 
-int options_callback(void *NotUsed, int argc, char **argv, char **azColName)
-{
+int options_callback(void *NotUsed, int argc, char **argv, char **azColName) {
 	all_options = realloc(all_options, ++all_options_size * (sizeof(struct option *)));
 	all_options[all_options_size - 1] = malloc(sizeof(struct option));
 
@@ -203,8 +189,7 @@ int options_callback(void *NotUsed, int argc, char **argv, char **azColName)
 	all_options[all_options_size - 1]->iv100 = atof(argv[15]);
 
 	// protects against NULL values
-	if (argv[16] && argv[17] && argv[18] && argv[19])
-	{
+	if (argv[16] && argv[17] && argv[18] && argv[19]) {
 		all_options[all_options_size - 1]->theta = atof(argv[16]);
 		all_options[all_options_size - 1]->beta = atof(argv[17]);
 		all_options[all_options_size - 1]->gamma = atof(argv[18]);
@@ -216,8 +201,7 @@ int options_callback(void *NotUsed, int argc, char **argv, char **azColName)
 	return 0;
 }
 
-void copy_option(struct option *new_option, struct option *old)
-{
+void copy_option(struct option *new_option, struct option *old) {
 	memset(new_option->ticker, 0, 10);
 	strcpy(new_option->ticker, old->ticker);
 
@@ -238,8 +222,7 @@ void copy_option(struct option *new_option, struct option *old)
 	new_option->iv100 = old->iv100;
 
 	// protects against NULL values
-	if (old->theta && old->beta && old->gamma && old->vega)
-	{
+	if (old->theta && old->beta && old->gamma && old->vega) {
 		new_option->theta = old->theta;
 		new_option->beta = old->beta;
 		new_option->gamma = old->gamma;

@@ -3,7 +3,7 @@
 
 #include "screener.h"
 
-#define MAX_BID_ASK_ERROR 0.075
+#define MAX_BID_ASK_ERROR 0.15
 
 // collecting options
 void screen_volume_oi_baspread(struct parent_stock **parent_array, int parent_array_size); // done
