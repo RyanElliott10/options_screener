@@ -3,7 +3,13 @@ A stock options screener developed in C and Python. Data is collected via the Py
 
 This data is then sent through the C program to be assigned weights to the option contracts and essentially weed out the illiquid and unprofitable contracts while propagating the very liquid and likely profitable contracts to the higher ranks.
 
-## Nitty Gritty Details
+## Execution Details
 The entire screener is ran through the C program, screener.(c/h/o). The program will first prompt the user to decide if they want to collect the recent data. If the user decides to fetch the most current data, screener.c will fork and exec options_collector.py, initalizing the data scraping and storage in a SQLite database.
 
 Following the completion of the Python script, screener.c will pull the data from the SQLite database and perform the appropriate screening. Once the screener is complete, the user will be asked two questions: the minimum weight to view and maximum cost of each contract. Any and all contracts that fall within the specified range will be printed to the terminal for the user to review.
+
+## Instructions
+### To Compile:
+  `$ make`
+### To Run:
+  `$ ./screener`
