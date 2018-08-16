@@ -13,7 +13,7 @@ Following the completion of the Python script, screener.c will pull the data fro
   `$ make [ target ]`
 ### To Run:
   `$ ./screener`
-### Required Python Libraries
+### Required Python Libraries:
   - requests
   - progressbar
   - futures
