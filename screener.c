@@ -14,15 +14,15 @@
 #include "safe.h"
 
 long pl_size;
-struct historical_price **price_list;
+struct HistoricalPrice **price_list;
 
-int main(int argc, char *argv[]) {
+int main (int argc, char *argv[]) {
 	int fd, mode, cont, status, ta_size, saved_stdout;
 	long parent_array_size;
 	pid_t pid;
 	char **tick_array = NULL;
 	char max_price[10], min_weight[6], skip_option[10], write_to_file[10], *newname;
-	struct parent_stock **parent_array;
+	struct ParentStock **parent_array;
 
 	mode = REGULAR;
 	cont = TRUE;
@@ -31,15 +31,17 @@ int main(int argc, char *argv[]) {
 	printf("Fetch new data? ");
 	fgets(skip_option, 10, stdin);
 
-	if (strstr(skip_option, "N") || strstr(skip_option, "n"))
+	if (strstr(skip_option, "N") || strstr(skip_option, "n")) {
 		mode = REGULAR;
-	else {
-		if ((pid = fork()) == 0) { // if child, exec python program
+	} else {
+		// if child, exec python program
+		if ((pid = fork()) == 0) {
 			printf("Collecting stock and option data...\n");
 			execlp("python3", "python3", "options_collector.py", (char *)NULL);
 
 			printf("Warning: Unable to gather data\n");
-			exit(EXIT_FAILURE); // if it reaches this point, the exec failed and the program should quit running
+			// if it reaches this point, the exec failed and the program should quit running
+			exit(EXIT_FAILURE);
 		}
 
 		waitpid(pid, &status, 0);
@@ -51,11 +53,15 @@ int main(int argc, char *argv[]) {
 
 	if (mode == REGULAR) {
 		printf("Gathering historical stock prices from database...\n");
-		parent_array = gather_tickers(&parent_array_size); // collects all historical data and stores in structs
+		// collects all historical data and stores in structs
+		parent_array = gather_tickers(&parent_array_size);
 
-		gather_options(parent_array, parent_array_size);												 // collects all data from database and stores in structs
-		screen_volume_oi_baspread(parent_array, parent_array_size);									 // screens for volume/oi requirements, bid x ask spread
-		calc_basic_data(parent_array, parent_array_size, atof(max_price), atof(min_weight)); // calculates weights, etc.
+		// collects all data from database and stores in structs
+		gather_options(parent_array, parent_array_size);
+		// screens for volume/oi requirements, bid x ask spread
+		screen_volume_oi_baspread(parent_array, parent_array_size);
+		// calculates weights, etc.
+		calc_basic_data(parent_array, parent_array_size, atof(max_price), atof(min_weight));
 
 		// should probably break it up such that you gather all the data and then have one function called calc_weights that will
 		// be called so that you can easily adjust how things are weighted rather than having to go through the code and trying to
@@ -111,7 +117,9 @@ int main(int argc, char *argv[]) {
 	return 0;
 }
 
-/* parses argv, decides which mode to use, creates list containing personalized stocks, if necessary */
+/* 
+ * Parses argv, decides which mode to use, creates list containing personalized stocks, if necessary.
+ */
 char **parse_args(int argc, char *argv[], int *mode, int *ta_size) {
 	int i;
 	char **tick_array = safe_malloc(sizeof(char *));
@@ -120,25 +128,31 @@ char **parse_args(int argc, char *argv[], int *mode, int *ta_size) {
 	*ta_size = 0;
 
 	if ((argc > 1) && (argv[1][0] == '-')) { // if there is a flag
-		switch (argv[1][1]) { // determine which flag they inputted
-		case 'o': // if they want to only use input stocks
-					 // fall-through
-			*mode = NEW_STOCKS;
-		case 'a': // if they want to append stocks
-			if (*mode != NEW_STOCKS)
-				*mode = APPEND_STOCKS;
+		// determine which flag they inputted
+		switch (argv[1][1]) {
+			// if they want to only use input stocks
+			case 'o':
+				// fall-through
+				*mode = NEW_STOCKS;
+			// if they want to append stocks
+			case 'a':
+				if (*mode != NEW_STOCKS) {
+					*mode = APPEND_STOCKS;
+				}
 
-			for (; i < argc; i++) { // collect all desired tickers
-				tick_array = safe_realloc(tick_array, ++(*ta_size) * sizeof(char *));
-				tick_array[*ta_size - 1] = safe_malloc(sizeof(char));
+				// collect all desired tickers
+				for (; i < argc; i++) {
+					tick_array = safe_realloc(tick_array, ++(*ta_size) * sizeof(char *));
+					tick_array[*ta_size - 1] = safe_malloc(sizeof(char));
 
-				strcpy(tick_array[*ta_size - 1], argv[i]);
-			}
+					strcpy(tick_array[*ta_size - 1], argv[i]);
+				}
 
-			return tick_array;
-		default: // if there is a usage error
-			fprintf(stderr, "usage: ./screener [ -oa ] [ tickers ]\n");
-			exit(EXIT_FAILURE);
+				return tick_array;
+			// if there is a usage error
+			default:
+				fprintf(stderr, "usage: ./screener [ -oa ] [ tickers ]\n");
+				exit(EXIT_FAILURE);
 		}
 	}
 
@@ -146,7 +160,7 @@ char **parse_args(int argc, char *argv[], int *mode, int *ta_size) {
 	return NULL;
 }
 
-void print_data(struct parent_stock **parent_array, int parent_array_size, float max_option_price, float min_weight, int fd) {
+void print_data(struct ParentStock **parent_array, int parent_array_size, float max_option_price, float min_weight, int fd) {
 	int printed, outter_i, inner_i;
 	float weight;
 	time_t t = time(NULL);
@@ -209,7 +223,7 @@ void free_tick_array(char **tick_array, int ta_size) {
 	return;
 }
 
-void free_parent_array(struct parent_stock **parent_array, int parent_array_size)
+void free_parent_array(struct ParentStock **parent_array, int parent_array_size)
 {
 	int outter_i, inner_i;
 
@@ -230,7 +244,7 @@ void free_parent_array(struct parent_stock **parent_array, int parent_array_size
 	return;
 }
 
-void print_large_volumes(struct parent_stock **parent_array, int parent_array_size)
+void print_large_volumes(struct ParentStock **parent_array, int parent_array_size)
 {
 	int count, min_vol, outter_i, inner_i, min_vol_index;
 	struct option *largest_volumes[MIN_VOL_LENGTH];
@@ -296,7 +310,7 @@ void find_min_vol(struct option **largest_volumes, int *min_vol, int *min_vol_in
 }
 
 /* idea: have it print the average weight, lows, highs, and one std */
-void find_averages(struct parent_stock **parent_array, int parent_array_size) {
+void find_averages(struct ParentStock **parent_array, int parent_array_size) {
 	int count, outter_i, inner_i;
 	float weights, low, high;
 

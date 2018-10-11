@@ -34,7 +34,7 @@ int bid_ask_spread(struct option *opt) {
 }
 
 /* Calculates all basic data on calls and puts */
-void calc_basic_data(struct parent_stock **parent_array, int parent_array_size, float max_option_price, float min_weight) {
+void calc_basic_data(struct ParentStock **parent_array, int parent_array_size, float max_option_price, float min_weight) {
 	int outter_i, inner_i;
 
 	for (outter_i = 0; outter_i < parent_array_size; outter_i++) {

@@ -102,9 +102,8 @@
 #define FALSE 0
 #define TRUE 1
 
-struct option
-{
-   struct parent_stock *parent; // pointer to parent stock
+struct option {
+   struct ParentStock *parent; // pointer to parent stock
    char ticker[10];             // ticker symbol
    int type;                    // call/put (call = TRUE, put = FALSE)
    long expiration_date;        // in epoch time
@@ -133,11 +132,10 @@ struct option
    float one_std_deviation;
 };
 
-struct parent_stock
-{
+struct ParentStock {
    struct option **calls;                  // list of all calls associated with stock
    struct option **puts;                   // list of all puts associated with stock
-   struct historical_price **prices_array; // list of all prices
+   struct HistoricalPrice **prices_array; // list of all prices
    long prices_array_size;
    int calls_size;
    int num_open_calls;
@@ -156,8 +154,7 @@ struct parent_stock
    float puts_weight;  // weight to be given to every put of original stock
 };
 
-struct historical_price
-{
+struct HistoricalPrice {
    char ticker[TICK_SIZE];
    long date;
    float open;
@@ -167,11 +164,11 @@ struct historical_price
    long volume;
 };
 
-void print_data(struct parent_stock **parent_array, int parent_array_size, float max_option_price, float min_weight, int fd);
+void print_data(struct ParentStock **parent_array, int parent_array_size, float max_option_price, float min_weight, int fd);
 void find_min_vol(struct option **largest_volumes, int *min_vol, int *min_vol_index);
-void print_large_volumes(struct parent_stock **parent_array, int parent_array_size);
-void free_parent_array(struct parent_stock **parent_array, int parent_array_size);
-void find_averages(struct parent_stock **parent_array, int parent_array_size);
+void print_large_volumes(struct ParentStock **parent_array, int parent_array_size);
+void free_parent_array(struct ParentStock **parent_array, int parent_array_size);
+void find_averages(struct ParentStock **parent_array, int parent_array_size);
 int callback(void *NotUsed, int argc, char **argv, char **azColName);
 char **parse_args(int argc, char *argv[], int *mode, int *ta_size);
 void free_tick_array(char **tick_array, int ta_size);

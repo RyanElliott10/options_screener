@@ -1,4 +1,4 @@
-CC     = gcc
+CC     = clang
 CFLAGS = -pedantic -Wall -g
 BFLAGS = -lsqlite3
 OBJS   = screener.o general_stocks.o options.o safe.o
