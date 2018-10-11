@@ -112,7 +112,7 @@ class util:
                     if ('B' in row[3]):
                         self.tickers.append(row[0])
 
-    def gather_hv(self):
+    def gather_historical_volatility(self):
         url = "http://www.optionstrategist.com/calculators/free-volatility-data"
 
         curr_page = soup(requests.get(
@@ -124,10 +124,10 @@ class util:
         # formatted as:
         # key: ticker
         # value: list (20 day, 50 day, 100 day)
-        self.extract_hv(info_list)
+        self.extract_historical_volatility(info_list)
         self.clean_dict()
 
-    def extract_hv(self, info_list):
+    def extract_historical_volatility(self, info_list):
         """ Parses historical volatility for each ticker """
         for info_obj in info_list:
             count = 0
@@ -456,21 +456,21 @@ class util:
         for tick in self.tickers:
             for price in tick.prices:
                 hist_prices_curs.execute("INSERT INTO historicalPrices VALUES(?, ?, ?, ?, ?, ?, ?)",
-                                         (tick.symbol, price.date, price.open, price.low, price.high, price.close, price.volume))
+                                            (tick.symbol, price.date, price.open, price.low, price.high, price.close, price.volume))
             hist_prices_conn.commit()
 
             for call in tick.calls:
                 options_curs.execute("INSERT INTO optionsData VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " +
                                      "?, ?, ?, ?, ?, ?, ?)", (tick.symbol, "Call", call.expiration, call.dte, call.strike, call.volume,
-                                                              call.open_interest, call.bid, call.ask, call.last_price, call.percent_change, str(
-                                                                  call.itm), call.iv, tick.iv20,
-                                                              tick.iv50, tick.iv100, call.theta, call.beta, call.gamma, call.vega))
+                                                                call.open_interest, call.bid, call.ask, call.last_price, call.percent_change, str(
+                                                                call.itm), call.iv, tick.iv20, tick.iv50, tick.iv100, call.theta, call.beta,
+                                                                call.gamma, call.vega))
             for put in tick.puts:
                 options_curs.execute("INSERT INTO optionsData VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " +
                                      "?, ?, ?, ?, ?, ?, ?)", (tick.symbol, "Put", put.expiration, put.dte, put.strike, put.volume,
-                                                              put.open_interest, put.bid, put.ask, put.last_price, put.percent_change, str(
-                                                                  put.itm), put.iv, tick.iv20,
-                                                              tick.iv50, tick.iv100, put.theta, put.beta, put.gamma, put.vega))
+                                                                put.open_interest, put.bid, put.ask, put.last_price, put.percent_change, str(
+                                                                put.itm), put.iv, tick.iv20, tick.iv50, tick.iv100, put.theta, put.beta,
+                                                                put.gamma, put.vega))
             options_conn.commit()
 
     def prefetch_webpages(self):
@@ -480,20 +480,17 @@ class util:
         requests_cache.install_cache(
             'cache', backend='sqlite', expire_after=3600)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             future_to_tickers = {executor.submit(
                 self.get_pages, tick): tick for tick in self.tickers}
-            bar = progressbar.ProgressBar(max_value=len(self.tickers))
-            foo = 0
+            count = 0
 
             for future in concurrent.futures.as_completed(future_to_tickers):
-                if foo >= len(self.tickers):
-                    foo = foo - 1
+                if count >= len(self.tickers):
+                    count = count - 1
 
-                foo += 1
-                bar.update(foo)
-
-        bar.update(length)
+                count += 1
+                sys.stdout.write("\rProgress: {0} / {1} webpages".format(count, len(self.tickers)))
         print()
 
     def get_pages(self, tick):
@@ -517,7 +514,7 @@ class util:
             count = 0
             url = (
                 "https://query1.finance.yahoo.com/v7/finance/options/{0}?formatted=true&crumb=R6vBcFmQGju&lang=en-US&region=US&date={1}&corsDomain=finance.yahoo.com".format(
-                    tick.symbol, date))
+                tick.symbol, date))
 
             while (not cont):
                 try:
@@ -534,7 +531,7 @@ class util:
         remove_list = []
 
         self.download_files()
-        self.gather_hv()
+        self.gather_historical_volatility()
 
         self.tickers = []
 
