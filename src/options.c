@@ -8,10 +8,10 @@
 #include <sqlite3.h>
 #include <sys/types.h>
 
-#include "screener.h"
-#include "options.h"
-#include "general_stocks.h"
-#include "safe.h"
+#include "../include/screener.h"
+#include "../include/options.h"
+#include "../include/general_stocks.h"
+#include "../include/safe.h"
 
 /* Returns TRUE if it is beyond MAX_BID_ASK_ERROR */
 int bid_ask_spread(struct option *opt) {

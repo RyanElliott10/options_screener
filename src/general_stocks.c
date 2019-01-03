@@ -8,10 +8,10 @@
 #include <sqlite3.h>
 #include <sys/types.h>
 
-#include "screener.h"
-#include "general_stocks.h"
-#include "options.h"
-#include "safe.h"
+#include "../include/screener.h"
+#include "../include/general_stocks.h"
+#include "../include/options.h"
+#include "../include/safe.h"
 
 void gather_options(struct ParentStock **parent_array, long parent_array_size) {
 	int i, parent_array_index;

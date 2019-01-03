@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
-#include "safe.h"
+#include "../include/safe.h"
 
 /* Safe wrapper for open() */
 int safe_open(const char *filename, int mode, int perms) {

@@ -7,16 +7,16 @@ MAIN   = screener
 screener : $(OBJS)
 	$(CC) $(OBJS) $(BFLAGS) -o screener
 
-screener.o : screener.c screener.h
+screener.o : screener.c ../include/screener.h
 	$(CC) $(CFLAGS) -c screener.c
 
-general_stocks.o : general_stocks.c general_stocks.h
+general_stocks.o : general_stocks.c ../include/general_stocks.h
 	$(CC) $(CFLAGS) -c general_stocks.c
 
-options.o : options.c options.h
+options.o : options.c ../include/options.h
 	$(CC) $(CFLAGS) -c options.c
 
-safe.o : safe.c safe.h
+safe.o : safe.c ../include/safe.h
 	$(CC) $(CFLAGS) -c safe.c
 
 clean: 

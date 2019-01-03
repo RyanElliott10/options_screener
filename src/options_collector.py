@@ -87,9 +87,9 @@ class util:
 
     def download_files(self):
         names = [
-            "nasdaq.csv",
-            "nyse.csv",
-            "amex.csv"
+            "../include/nasdaq.csv",
+            "../include/nyse.csv",
+            "../include/amex.csv"
         ]
         urls = [
             "https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download",
